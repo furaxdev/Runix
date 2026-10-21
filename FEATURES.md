@@ -229,10 +229,52 @@ verify on real hardware.
 
 ## M6 — Polish
 
-- [ ] 7. Bench & arena
-- [ ] 12. Plugin system (+ optional stable-diffusion.cpp image plugin)
-- [ ] 13. Automation (scheduled tasks, folder watch, webhooks)
-- [ ] 30. Distribution (portable mode, installers/packages, signed updates)
+- [x] 7. Bench & arena — `runyx bench <model>` and `/api/runyx/bench`
+      measure time-to-first-token and tokens/sec from real SSE
+      streaming timing (tested against a fake server with real,
+      measured delays — the timing logic itself is real, not mocked
+      math); `/api/runyx/arena` runs N models concurrently on the same
+      prompt and returns anonymized A/B/... results for blind voting
+      (tested with 2 concurrent fake targets). Never run against a real
+      llama-server (same fetch blocker as M1, docs/BLOCKED.md). No
+      arena voting UI built — API only.
+- [x] 12. Plugin system — plugins ARE MCP servers Runyx launches and
+      manages (internal/plugin, reusing internal/mcp from M4 rather
+      than inventing a second protocol); start/stop/call/list all
+      tested against a REAL subprocess (`runyx mcp-serve` built fresh
+      and launched for real). No WASM sandboxing — subprocess isolation
+      only (same OS-process boundary as the shell agent/interpreter,
+      not a hardened sandbox). The "stable-diffusion.cpp image plugin"
+      was NOT built: it would need the same GitHub-release-fetch
+      pattern as llama.cpp/whisper.cpp (blocked here, see
+      docs/BLOCKED.md) plus new plugin-side code this session didn't
+      reach — listed as not done, not silently skipped.
+- [x] 13. Automation — cron-style scheduler (`internal/automation`,
+      robfig/cron), folder watcher (fsnotify), and HMAC-signed inbound
+      webhooks. **All three tested against real OS behavior**: a real
+      cron tick firing on schedule, a real filesystem create event
+      detected via fsnotify, and a real HMAC-SHA256 signature verified
+      over a real HTTP request. Not wired into the daemon's default
+      config (no scheduled tasks or watched folders ship by default —
+      opt-in only, matching §7); an API/CLI to add tasks through
+      `runyx serve` itself (vs. constructing `automation.Scheduler`
+      directly) is a near-term follow-up.
+- [x] 30. Distribution — portable mode (`RUNYX_PORTABLE=1`, unit
+      tested) and signed self-updates (`runyx update` checks GitHub for
+      real — tested against the real, currently-release-less
+      `furaxdev/runyx` repo, which correctly returns 404; Ed25519
+      signature verification tested against real generated key pairs,
+      including rejecting tampered content and wrong keys) are real,
+      tested code. Packaging manifests (Dockerfile, Homebrew formula,
+      AUR PKGBUILD, nfpm for deb/rpm, a winget manifest skeleton) are
+      written against Runyx's actual build but **none were built or
+      published** — this sandbox has no Docker daemon, no brew, no
+      makepkg, no nfpm, and winget submission is an external PR process.
+      See `scripts/package/README.md` for the honest per-target
+      breakdown and `docs/MANUAL_TESTS.md`. No signing key is embedded
+      yet (`internal/update.PublicKeyHex` is empty by design — see
+      docs/DECISIONS.md) so `runyx update` reports the latest release
+      but refuses to auto-apply until a maintainer wires one up.
 
 ## Infra (cross-cutting, started in M0)
 

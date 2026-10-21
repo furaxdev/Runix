@@ -40,6 +40,10 @@ func main() {
 		err = cmdShow(args)
 	case "mcp-serve":
 		err = cmdMCPServe(args)
+	case "bench":
+		err = cmdBench(args)
+	case "update":
+		err = cmdUpdate(args)
 	case "help", "-h", "--help":
 		printUsage()
 		return
@@ -70,5 +74,7 @@ Usage:
   runyx show <model>           Show details about an installed model
   runyx rm <model>             Remove an installed model
   runyx mcp-serve              Expose Runyx's tools over MCP (stdio)
+  runyx bench <model> [prompt]  Measure tokens/sec and time-to-first-token
+  runyx update                 Check for (and, once signed, apply) updates
 `)
 }

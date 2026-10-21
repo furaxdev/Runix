@@ -93,6 +93,18 @@ works the same either way since it's just an IP + port + token. No
 code change was needed for this to already work; what's explicitly NOT
 done is any Runyx-side WireGuard/Tailscale setup automation.
 
+## 2026-10-21 — No real Ed25519 release key embedded in `internal/update`
+
+`update.PublicKeyHex` is deliberately left empty rather than filled
+with a placeholder/test key. A "signed updates" feature that silently
+verifies against a fake key would look safe while verifying nothing —
+worse than clearly refusing to apply updates until a maintainer
+generates a real key pair, keeps the private half secret, and embeds
+the public half at release-build time (e.g. via `-ldflags
+"-X github.com/furaxdev/runyx/internal/update.PublicKeyHex=<hex>"`).
+`runyx update` today checks for and reports a newer release, and tells
+the user exactly why it won't apply it automatically.
+
 ## 2026-10-21 — `runyx` talks to `runyxd` over plain HTTP on 127.0.0.1, no
 Unix socket
 

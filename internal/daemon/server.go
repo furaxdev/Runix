@@ -60,6 +60,9 @@ func (d *Daemon) NewHTTPServer() *http.Server {
 	remoteExtras := &api.RemoteExtras{Router: d.Remote}
 	remoteExtras.RegisterRemote(mux)
 
+	m6 := &api.M6Extras{Plugins: d.Plugins, Scheduler: d.Scheduler, Server: apiServer}
+	m6.RegisterM6(mux)
+
 	registerStaticUI(mux)
 
 	return &http.Server{

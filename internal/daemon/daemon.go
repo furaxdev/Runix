@@ -10,12 +10,14 @@ import (
 	"time"
 
 	"github.com/furaxdev/runyx/internal/agent"
+	"github.com/furaxdev/runyx/internal/automation"
 	"github.com/furaxdev/runyx/internal/backend"
 	"github.com/furaxdev/runyx/internal/config"
 	"github.com/furaxdev/runyx/internal/history"
 	"github.com/furaxdev/runyx/internal/hwdetect"
 	"github.com/furaxdev/runyx/internal/interpreter"
 	"github.com/furaxdev/runyx/internal/modelstore"
+	"github.com/furaxdev/runyx/internal/plugin"
 	"github.com/furaxdev/runyx/internal/remote"
 	"github.com/furaxdev/runyx/internal/vision"
 	"github.com/furaxdev/runyx/internal/voice"
@@ -49,6 +51,11 @@ type Daemon struct {
 	// 28); empty unless the user added one in config.toml. Never used
 	// automatically — see internal/remote's package doc.
 	Remote *remote.Router
+
+	// Plugins and Scheduler back items 12/13. Both start empty: no
+	// plugin or scheduled task runs unless explicitly added.
+	Plugins   *plugin.Manager
+	Scheduler *automation.Scheduler
 
 	stopEviction context.CancelFunc
 }
@@ -96,6 +103,8 @@ func New(cfg config.Config, backendBinary string) (*Daemon, error) {
 		d.Synthesizer = &voice.Synthesizer{BinaryPath: piperBin}
 	}
 	d.Remote = &remote.Router{Providers: map[string]remote.Provider{}}
+	d.Plugins = plugin.NewManager()
+	d.Scheduler = automation.NewScheduler()
 
 	if cfg.AgentWorkDir != "" {
 		// No ApprovalFunc is wired here: the daemon has no synchronous
@@ -120,6 +129,7 @@ func New(cfg config.Config, backendBinary string) (*Daemon, error) {
 func (d *Daemon) StartEvictionLoop(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	d.stopEviction = cancel
+	d.Scheduler.Start()
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
@@ -142,6 +152,8 @@ func (d *Daemon) Shutdown() {
 	if d.stopEviction != nil {
 		d.stopEviction()
 	}
+	d.Scheduler.Stop()
+	d.Plugins.StopAll()
 	d.Manager.StopAll()
 	if d.History != nil {
 		d.History.Close()

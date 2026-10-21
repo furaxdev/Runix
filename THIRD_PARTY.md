@@ -14,6 +14,8 @@ and their licenses, checked for compatibility with MIT distribution.
 | [github.com/skip2/go-qrcode](https://github.com/skip2/go-qrcode) | MIT | QR code generation for Android pairing (item 26) |
 | [github.com/hashicorp/mdns](https://github.com/hashicorp/mdns) | MIT | mDNS announce/discover for Android pairing (item 26) |
 | [github.com/miekg/dns](https://github.com/miekg/dns) (transitive, via hashicorp/mdns) | BSD-3-Clause | DNS message parsing used by the mDNS library |
+| [github.com/robfig/cron/v3](https://github.com/robfig/cron) | MIT | Scheduled automation tasks (item 13) |
+| [github.com/fsnotify/fsnotify](https://github.com/fsnotify/fsnotify) | BSD-3-Clause | Folder-watch automation (item 13) |
 
 ### Android app (`android/`)
 

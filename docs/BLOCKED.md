@@ -99,6 +99,25 @@ daemon and stream a chat response, confirming push-to-talk records and
 transcribes for real — needs a second physical device and wasn't
 possible in this single-container sandbox. See docs/MANUAL_TESTS.md.
 
+## Packaging manifests written but not built (no Docker/brew/makepkg/nfpm here)
+
+`scripts/package/` has a real Dockerfile, Homebrew formula, AUR
+PKGBUILD, nfpm config, and winget manifest skeleton, all written
+against Runyx's actual build process. None were actually built in this
+sandbox: there's no running Docker daemon (the `docker` CLI is present
+but `docker ps` fails to reach a socket), no Homebrew, no Arch
+`makepkg`, and `nfpm` isn't installed. See `scripts/package/README.md`
+and `docs/MANUAL_TESTS.md`.
+
+## stable-diffusion.cpp plugin (image generation) not built
+
+Item 12 suggests a stable-diffusion.cpp-based image generation plugin
+as a first example. The plugin *system* itself is built and tested
+(real subprocess, real MCP protocol — see FEATURES.md item 12), but
+writing the actual stable-diffusion.cpp plugin needs the same
+GitHub-release-fetch pattern already blocked for llama.cpp/whisper.cpp
+in this sandbox, plus new code this session didn't get to. Not started.
+
 ## No real microphone / speaker
 
 Push-to-talk and hands-free voice interaction (item 25) need a real audio

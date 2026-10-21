@@ -131,6 +131,33 @@ interpreter_work_dir = "/home/you/runyx-interpreter-workspace"
   assembleDebug` (needs the Android SDK; this repo's CI installs it
   automatically).
 
+## Bench, plugins, automation (M6)
+
+```bash
+runyx bench <model> [prompt]   # tokens/sec and time-to-first-token
+runyx update                   # checks GitHub for a newer release
+```
+
+- `POST /api/runyx/arena` `{models: [...], prompt}` runs the same
+  prompt against 2+ loaded models concurrently for a blind A/B/...
+  comparison.
+- Plugins are MCP servers Runyx launches itself — construct a
+  `plugin.Manager` and `Start` a `plugin.Spec{Name, Command, Args}`
+  (any program speaking MCP over stdio, including `runyx mcp-serve`
+  itself); `GET /api/runyx/plugins` lists what's running, `POST
+  /api/runyx/plugins/{name}/call` invokes one of its tools. No
+  plugins run by default.
+- Automation (`internal/automation`) has a cron-style `Scheduler`, a
+  `FolderWatcher`, and an HMAC-verified `WebhookRegistry` — none are
+  wired into `runyx serve`'s default config yet; use them by
+  constructing them directly in a custom build, or wait for the
+  config.toml + CLI surface that's a natural follow-up.
+- `RUNYX_PORTABLE=1 runyx serve` keeps all data next to the binary
+  (portable/USB-stick mode).
+- See `scripts/package/README.md` for packaging (Docker, Homebrew,
+  AUR, deb/rpm, winget) — manifests exist but weren't built/published
+  from this sandbox.
+
 ## Known limitations in this milestone
 
 - `runyx pull` always re-downloads rather than consulting mirrors; mirror
