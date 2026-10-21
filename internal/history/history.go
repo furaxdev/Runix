@@ -30,6 +30,14 @@ func Open(dataDir string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("migrate history db: %w", err)
 	}
+	if err := s.migrateProjects(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate projects/memory: %w", err)
+	}
+	if err := s.migrateRAG(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate rag: %w", err)
+	}
 	return s, nil
 }
 

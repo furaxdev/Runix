@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/furaxdev/runyx/internal/backend"
+	"github.com/furaxdev/runyx/internal/history"
 	"github.com/furaxdev/runyx/internal/hwdetect"
 	"github.com/furaxdev/runyx/internal/modelstore"
 )
@@ -17,6 +18,11 @@ type Server struct {
 	Manager *backend.Manager
 	HW      hwdetect.Info
 	Client  *http.Client
+	// History is used by RegisterKnowledge (RAG indexing/search reads
+	// and writes doc_chunks via the same history DB). Nil disables
+	// those routes' storage — RegisterKnowledge callers should only
+	// call it when History is set.
+	History *history.Store
 }
 
 // NewServer returns a Server ready to have its routes registered.

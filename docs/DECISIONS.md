@@ -26,6 +26,35 @@ names, and the code is otherwise ready to run as-is on a normal machine
 with full internet access. CI's integration test mocks the HTTP layer
 instead of hitting the real network, so it stays deterministic.
 
+## 2026-10-21 — Pure-Go cosine similarity instead of sqlite-vec for RAG (item 16)
+
+The brief suggests `sqlite-vec`, but it's a loadable SQLite extension
+(compiled C), which the pure-Go `modernc.org/sqlite` driver can't load
+without cgo — the same reasoning that picked that driver in the first
+place (see the entry above) applies here too. At the scale a local,
+single-user RAG index actually reaches (a few thousand chunks per
+project, not millions), a linear scan computing cosine similarity in Go
+over all stored embedding vectors is well under a millisecond and avoids
+the dependency entirely. Revisit only if a project's index grows large
+enough (tens of thousands+ chunks) that linear scan becomes a visible
+delay — an in-memory approximate index (e.g. HNSW) would be the next
+step, not pulling in cgo.
+
+## 2026-10-21 — Web search uses `lite.duckduckgo.com/lite/`, not
+`html.duckduckgo.com/html/`
+
+The brief mentions either SearXNG or DuckDuckGo. `html.duckduckgo.com`
+was tried first and is unreachable from this sandbox's egress proxy
+(connection resets / TLS handshake timeouts on every attempt);
+`lite.duckduckgo.com/lite/` worked and needed only a GET with a `q`
+query param (vs. the heavier `html/` endpoint's POST form), confirmed
+against the real network. No API key, no tracking parameters added.
+SearXNG wasn't wired up — it needs a running instance (public ones are
+rate-limited and change availability over time; self-hosting is out of
+scope for M3) — but `internal/websearch.Client` is small enough to swap
+or extend with a second backend later if a user wants to point it at
+their own SearXNG.
+
 ## 2026-10-21 — `runyx` talks to `runyxd` over plain HTTP on 127.0.0.1, no
 Unix socket
 

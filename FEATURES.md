@@ -89,11 +89,36 @@ verify on real hardware.
 
 ## M3 — Knowledge
 
-- [ ] 15. Projects
-- [ ] 16. Local RAG with citations
-- [ ] 18. User memory (visible, editable)
-- [ ] 19. Long context compression + token gauge
-- [ ] 20. Web search tool with citations
+- [x] 15. Projects — workspace with its own system prompt (SQLite-backed);
+      tested end to end over the HTTP API. Per-project file attachment
+      UI (vs. just a `files_dir` field) is not built yet.
+- [x] 16. Local RAG with citations — chunking (reuses item 17's
+      `convert.Chunk`), embedding via any loaded model's `/v1/embeddings`,
+      cosine-similarity search (pure Go, no sqlite-vec needed at this
+      scale — see docs/DECISIONS.md), citations rendered with file name +
+      passage number. Tested end to end with a fake embedding server that
+      actually proves ranking-by-relevance and per-project scoping; a
+      real embedding model (e.g. nomic-embed-text) was never pulled and
+      run here (same llama-server fetch blocker as M1, see
+      docs/BLOCKED.md).
+- [x] 18. User memory — visible, listable, deletable facts (SQLite,
+      global or per-project); tested end to end over the HTTP API.
+      Nothing writes to it automatically yet (no "the model decided to
+      remember X" flow) — that's a UI/agent-loop integration, not
+      implemented.
+- [x] 19. Long context compression + token gauge — character-based token
+      estimate (same heuristic as item 17's chunking), gauge endpoint
+      tested over HTTP, compression function unit tested with a fake
+      summarizer. Not yet wired into the actual chat loop (no model
+      automatically summarizes old messages mid-conversation yet) — the
+      building block exists, the automatic trigger doesn't.
+- [x] 20. Web search — DuckDuckGo Lite HTML scraping, opt-in (nothing
+      calls it automatically), citations with real unwrapped URLs,
+      self-labeled as untrusted per §7. **Tested against the real
+      network** (a real search for "golang programming" returns real
+      results) — the one item in this milestone verified against a real
+      external service rather than a fake one. Per-conversation
+      enable/disable toggle is a UI concern, not built yet.
 
 ## M4 — Agent
 

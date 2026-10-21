@@ -15,12 +15,15 @@ import (
 func (d *Daemon) NewHTTPServer() *http.Server {
 	mux := http.NewServeMux()
 	apiServer := api.NewServer(d.Store, d.Manager, d.HW)
+	apiServer.History = d.History
 	apiServer.Register(mux)
-	apiServer.RegisterRunyx(mux, &api.RunyxExtras{
+	extras := &api.RunyxExtras{
 		History:     d.History,
 		Transcriber: d.Transcriber,
 		Vision:      d.Vision,
-	})
+	}
+	apiServer.RegisterRunyx(mux, extras)
+	apiServer.RegisterKnowledge(mux, extras)
 	registerStaticUI(mux)
 
 	return &http.Server{
