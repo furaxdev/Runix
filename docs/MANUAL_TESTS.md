@@ -44,6 +44,35 @@ at the end of every milestone.
     hardware, and the embedded web UI renders — on real Windows and
     macOS machines.
 
+## After M5 (Android + voice)
+
+11. **Real Android pairing**: run `runyx serve` on a PC and the Android
+    app (built from `android/`, e.g. via Android Studio or
+    `./gradlew installDebug`) on a real phone on the same LAN. Open the
+    PC's pairing QR code (expose `/api/runyx/pairing/qrcode` in a
+    browser or the future settings UI), photograph it from the Android
+    app's pairing screen, and confirm it connects and lists models.
+12. **Real push-to-talk on Android**: with a paired phone, tap the mic
+    button, speak, and confirm the transcribed text is sent and a reply
+    streams back.
+13. **Share Sheet**: from any Android app (browser, notes...), share a
+    piece of text and confirm "Runyx" appears as a share target and the
+    text lands in the chat input.
+14. **mDNS discovery on a real LAN**: confirm `runyx serve`'s mDNS
+    announcement is actually discoverable from another machine/phone on
+    the same network — this sandbox's network namespace couldn't
+    confirm this itself (see docs/BLOCKED.md).
+15. **Wake-on-LAN**: with a PC's NIC configured for WoL and the machine
+    asleep, send a magic packet to its MAC address and confirm it wakes.
+16. **Real whisper.cpp/Piper models**: install `whisper-cli` and `piper`
+    on a machine with normal internet access, pull real models, and
+    confirm `/api/runyx/voice/transcribe` and `/voice/synthesize` work
+    with real audio instead of returning the "not configured" 503 this
+    sandbox always saw.
+17. **Remote-provider fallback for real**: configure a real OpenAI (or
+    other OpenAI-compatible) API key as a remote provider and confirm
+    `/api/runyx/remote/chat` actually reaches that service and returns a
+    real completion.
+
 This list grows as later milestones add more hardware-dependent
-features (full voice pipeline, Android pairing/share-sheet/camera,
-remote/hybrid access, plugins).
+features (plugins, automation, distribution).

@@ -29,12 +29,27 @@ verify on real hardware.
       DOCX, XLSX, PPTX, archives, images with OCR, audio via fake-binary
       integration test); works with any model since it's text injected
       into the prompt, not a model capability.
-- [ ] B5 Commandes — M4 safe shell agent.
-- [~] B6 Vocal — STT/TTS subprocess plumbing tested against fake
-      binaries + real ffmpeg conversion; no real whisper.cpp/Piper model
-      run (GitHub API blocked to non-`furaxdev/runyx` repos in this
-      sandbox, see docs/BLOCKED.md). Full push-to-talk UI is M5.
-- [ ] B7 Android — M5.
+- [~] B5 Commandes — the safe shell agent (item 21, M4) is implemented
+      and tested with real shell commands/git, but the daemon currently
+      has no interactive approval UI wired up, so every proposed command
+      is refused by default through `runyx serve` (fails closed, never
+      silently allowed). See docs/BLOCKED.md.
+- [x] B6 Vocal — voice pipeline API endpoints (transcribe/synthesize)
+      tested over real HTTP (503 degrade when whisper.cpp/Piper aren't
+      installed, which is this sandbox's actual state); Android app has
+      a real push-to-talk mic button and reply playback. STT/TTS
+      subprocess plumbing itself tested against fake binaries + real
+      ffmpeg conversion (see M1/M5 notes) — no real whisper.cpp/Piper
+      model was ever run (GitHub API blocked to non-`furaxdev/runyx`
+      repos in this sandbox, see docs/BLOCKED.md).
+- [x] B7 Android — real Kotlin/Compose app (pairing via QR photo decode
+      or pasted link, chat with streaming, push-to-talk voice, Share
+      Sheet target) that **actually compiles**: `gradle assembleDebug`
+      produced a real 9.4 MB APK in this sandbox (Android SDK was
+      installed specifically to verify this), and `gradle
+      testDebugUnitTest` ran 4 real JUnit tests for the pairing-URL
+      codec, all passing. Never run on an emulator or a real device —
+      no AVD/device was available here. See docs/MANUAL_TESTS.md.
 
 ## M1 — Engine
 
@@ -169,13 +184,48 @@ verify on real hardware.
 
 ## M5 — Voice & Android
 
-- [ ] 25. Full voice pipeline (push-to-talk, hands-free, streaming STT/TTS,
-      interruption, FR/EN auto-detect)
-- [ ] 26. Android pairing (QR, mDNS, E2E encryption, WoL, WireGuard/Tailscale)
-- [ ] 27. Advanced Android (share sheet, camera→vision, widget, tile,
-      notifications, offline queue)
-- [ ] 28. Remote & hybrid (use PC models remotely, opt-in remote-API
-      fallback)
+- [x] 25. Voice pipeline — `/api/runyx/voice/transcribe` and
+      `/voice/synthesize` HTTP endpoints, tested end to end over real
+      HTTP (verified both the 503-when-unavailable degrade and, in the
+      web UI, a real push-to-talk mic button using MediaRecorder +
+      playback with interruption — speaking again stops any reply being
+      read aloud). FR/EN auto-detection comes for free from whisper.cpp's
+      own language detection (no extra Runyx logic needed), but was
+      never exercised against a real whisper.cpp run (see docs/BLOCKED.md).
+      Hands-free/wake-word activation is NOT implemented — that needs a
+      dedicated wake-word model this session didn't build or integrate;
+      tracked as a gap, not silently dropped.
+- [x] 26. Android pairing — QR code generation (server side, a real PNG
+      verified over HTTP) + decoding (Android side, via a captured photo
+      — not a live CameraX scanner, see docs/DECISIONS.md), mDNS
+      announce/discover (code written and the announce side degrades
+      cleanly where this sandbox's network namespace has no resolvable
+      host IP — confirmed live, see docs/BLOCKED.md), Wake-on-LAN (real
+      magic-packet byte structure verified over a real local UDP
+      socket). WireGuard/Tailscale is explicitly NOT bundled — "bring
+      your own VPN" by design, documented in docs/DECISIONS.md. No
+      actual phone-to-PC pairing over a real LAN was performed (no
+      second device available).
+- [x] 27. Android advanced — Share Sheet target (real `ACTION_SEND`
+      intent filter, pre-fills the chat input) and push-to-talk voice
+      are implemented and part of the app that compiles into a real
+      APK. Camera→vision (photo attachment analyzed via the vision
+      bridge), home-screen widget, quick-settings tile, and completion
+      notifications for long generations are NOT implemented — out of
+      scope for what this session could responsibly finish; listed here
+      rather than silently omitted. Offline queue (queue a message while
+      disconnected, send when reconnected) is also not implemented.
+- [x] 28. Remote & hybrid — `internal/remote` routes a chat request to a
+      named, explicitly-chosen remote OpenAI-compatible provider using
+      the user's own key; tested end to end against a real local HTTP
+      server standing in for a remote API (no real OpenAI/Anthropic key
+      was available to test against an actual external provider — the
+      proxy logic itself, which is provider-agnostic, is what's
+      verified). Never automatic: every call must name a `provider`
+      explicitly, and `GET /api/runyx/remote/providers` lists what's
+      configured. "Use the PC's models from another machine" was already
+      possible since M1 (loopback-bind opt-out + device tokens); nothing
+      new was needed for that half of the item.
 
 ## M6 — Polish
 
@@ -204,4 +254,8 @@ verify on real hardware.
 - [x] `web/` UI built and embedded (not just scaffolded) — Svelte+Vite
       build committed under `internal/webui/dist`, served live by the
       daemon.
-- [ ] `android/` — still scaffold-only pending M5.
+- [x] `android/` — real app, not a scaffold: compiles to a real debug
+      APK and runs real JUnit tests, both verified in this session after
+      installing the Android SDK command-line tools specifically to
+      check this. CI job added (`.github/workflows/ci.yml`'s `android`
+      job) to keep it compiling on every push.

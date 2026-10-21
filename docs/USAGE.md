@@ -112,6 +112,25 @@ interpreter_work_dir = "/home/you/runyx-interpreter-workspace"
 - `runyx mcp-serve` exposes Runyx's own tools (currently just
   `web_search`) to any MCP-aware client over stdio.
 
+## Voice, pairing & remote fallback (M5)
+
+- `POST /api/runyx/voice/transcribe` (multipart `file`) and `POST
+  /api/runyx/voice/synthesize` `{text}` — need `whisper-cli`/`piper` on
+  PATH respectively; otherwise return a clear 503.
+- `POST /api/runyx/pairing/qrcode` `{device_name}` returns a PNG QR
+  code encoding a fresh device token + this machine's LAN address, for
+  the Android app's pairing screen.
+- `GET /api/runyx/remote/providers` / `POST /api/runyx/remote/chat`
+  `{provider, ...rest is a normal chat completion body}` — opt-in
+  remote-API fallback (item 28). No providers are configured by
+  default; wiring one up currently means constructing a
+  `remote.Router` with a real `Provider{BaseURL, APIKey}` (a config.toml
+  section for this is a natural follow-up, not yet built).
+- Android app: see `android/README.md`-equivalent instructions below —
+  build it with Android Studio or `cd android && ./gradlew
+  assembleDebug` (needs the Android SDK; this repo's CI installs it
+  automatically).
+
 ## Known limitations in this milestone
 
 - `runyx pull` always re-downloads rather than consulting mirrors; mirror

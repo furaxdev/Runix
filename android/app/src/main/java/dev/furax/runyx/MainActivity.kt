@@ -1,40 +1,63 @@
 package dev.furax.runyx
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.fillMaxSize
 
 /**
- * Placeholder entry point. Device pairing (QR + mDNS), remote model use,
- * and the rest of the Android feature set land in M5 — see
- * docs/ROADMAP.md item 26-28. This exists so the module structure and
- * Gradle wiring are in place before that work starts.
+ * Entry point. Routes between pairing (item 26) and chat (items 25, 27)
+ * based on whether a PC is already paired, and handles incoming Share
+ * Sheet intents (item 27: "partage vers Runyx") by pre-filling the chat
+ * input with the shared text.
  */
 class MainActivity : ComponentActivity() {
+    private val viewModel: RunyxViewModel by viewModels()
+    private var sharedText: String? by mutableStateOf(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        viewModel.init(PairingStore(applicationContext))
+        handleIncomingIntent(intent)
+
         setContent {
-            RunyxPlaceholder()
+            MaterialTheme {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    RunyxApp(viewModel, sharedText)
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
         }
     }
 }
 
 @Composable
-fun RunyxPlaceholder() {
-    MaterialTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text("Runyx — pairing and chat UI land in milestone M5.")
-            }
-        }
+fun RunyxApp(viewModel: RunyxViewModel, sharedText: String?) {
+    val paired = viewModel.paired
+    if (paired == null) {
+        PairingScreen(viewModel)
+    } else {
+        ChatScreen(viewModel, sharedText)
     }
 }

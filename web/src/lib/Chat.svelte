@@ -14,6 +14,63 @@
   let fileInput: HTMLInputElement;
   let pendingAttachments: { file_name: string; kind: string; text: string }[] = [];
 
+  // Voice (item 25): push-to-talk recording via MediaRecorder, and
+  // playback of synthesized replies. currentAudio is tracked so a new
+  // recording or a new playback request can interrupt whatever's
+  // currently playing — the "interruption" requirement.
+  let recording = false;
+  let mediaRecorder: MediaRecorder | null = null;
+  let recordedChunks: Blob[] = [];
+  let currentAudio: HTMLAudioElement | null = null;
+
+  function stopPlayback() {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+  }
+
+  async function toggleRecording() {
+    if (recording) {
+      mediaRecorder?.stop();
+      return;
+    }
+    stopPlayback(); // speaking interrupts any reply currently being read aloud
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (e) => recordedChunks.push(e.data);
+      mediaRecorder.onstop = async () => {
+        recording = false;
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(recordedChunks, { type: "audio/webm" });
+        try {
+          const result = await api.transcribeAudio(blob);
+          input = (input ? input + " " : "") + result.text;
+        } catch (err) {
+          alert(`Transcription: ${err}`);
+        }
+      };
+      mediaRecorder.start();
+      recording = true;
+    } catch (err) {
+      alert(`Microphone: ${err}`);
+    }
+  }
+
+  async function speak(text: string) {
+    stopPlayback();
+    try {
+      const blob = await api.synthesizeSpeech(text);
+      const audio = new Audio(URL.createObjectURL(blob));
+      currentAudio = audio;
+      audio.play();
+    } catch (err) {
+      alert(`Synthèse vocale : ${err}`);
+    }
+  }
+
   async function send() {
     const text = input.trim();
     if (!text && pendingAttachments.length === 0) return;
@@ -75,7 +132,12 @@
   <div class="messages">
     {#each messages as m}
       <div class="msg {m.Role}">
-        <div class="bubble">{m.Content}</div>
+        <div class="bubble">
+          {m.Content}
+          {#if m.Role === "assistant"}
+            <button class="listen" title={t(lang, "listenReply")} on:click={() => speak(m.Content)}>🔊</button>
+          {/if}
+        </div>
       </div>
     {/each}
     {#if streaming}
@@ -95,6 +157,14 @@
 
   <div class="composer">
     <button class="attach" title={t(lang, "attachFile")} on:click={() => fileInput.click()}>📎</button>
+    <button
+      class="mic"
+      class:active={recording}
+      title={t(lang, recording ? "recording" : "recordVoice")}
+      on:click={toggleRecording}
+    >
+      🎙
+    </button>
     <input
       type="file"
       bind:this={fileInput}
@@ -196,12 +266,27 @@
     max-height: 160px;
     padding: 0.4rem 0.2rem;
   }
-  .attach, .send {
+  .attach, .send, .mic {
     border: none;
     background: transparent;
     border-radius: var(--radius-md);
     padding: 0.5rem 0.7rem;
     color: var(--text-muted);
+  }
+  .mic.active {
+    color: var(--accent-contrast);
+    background: var(--accent);
+  }
+  .listen {
+    border: none;
+    background: transparent;
+    color: inherit;
+    opacity: 0.6;
+    margin-left: 0.4rem;
+    cursor: pointer;
+  }
+  .listen:hover {
+    opacity: 1;
   }
   .send {
     background: var(--accent);

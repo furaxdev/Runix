@@ -70,6 +70,35 @@ actually approve a command through the daemon's HTTP API. A CLI-driven
 `ApprovalFunc` would work today — that path just isn't wired into
 `runyx serve`.
 
+## No wake-word / hands-free voice activation
+
+Item 25 asks for a hands-free mode with a wake word, in addition to
+push-to-talk. Push-to-talk is implemented (mic button in the web UI and
+the Android app, both tested against the real backend). Always-on wake-
+word detection needs a dedicated small always-listening model (e.g.
+Porcupine, or a custom keyword-spotting model) running continuously,
+which is a different kind of component than anything else in this
+session and wasn't built. Not silently dropped — just not done.
+
+## mDNS announce doesn't work in this sandbox's network namespace
+
+`pairing.Announce` failed in this sandbox with "could not determine
+host IP addresses for vm" — the container's network namespace doesn't
+expose a resolvable non-loopback IP the way a real LAN-connected
+machine would. The code itself (`internal/pairing`) is standard
+`hashicorp/mdns` usage and should work normally on a real machine on a
+real LAN; `TestAnnounceAndDiscover` in `internal/pairing` skips with
+this exact reason rather than failing, so CI won't be misled either.
+
+## No second physical device for real Android↔PC pairing
+
+The Android app compiles and its pairing-URL codec is unit tested, but
+pairing a real phone to a real running `runyx serve` over an actual LAN
+— scanning the live QR code, confirming the app can actually reach the
+daemon and stream a chat response, confirming push-to-talk records and
+transcribes for real — needs a second physical device and wasn't
+possible in this single-container sandbox. See docs/MANUAL_TESTS.md.
+
 ## No real microphone / speaker
 
 Push-to-talk and hands-free voice interaction (item 25) need a real audio

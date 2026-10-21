@@ -11,6 +11,19 @@ and their licenses, checked for compatibility with MIT distribution.
 | [github.com/google/uuid](https://github.com/google/uuid) | BSD-3-Clause | Message/conversation IDs |
 | [gopkg.in/yaml.v3](https://github.com/go-yaml/yaml) | MIT / Apache-2.0 | Runfile parsing |
 | [github.com/ledongthuc/pdf](https://github.com/ledongthuc/pdf) | MIT | PDF text extraction for universal attachments (item 17) |
+| [github.com/skip2/go-qrcode](https://github.com/skip2/go-qrcode) | MIT | QR code generation for Android pairing (item 26) |
+| [github.com/hashicorp/mdns](https://github.com/hashicorp/mdns) | MIT | mDNS announce/discover for Android pairing (item 26) |
+| [github.com/miekg/dns](https://github.com/miekg/dns) (transitive, via hashicorp/mdns) | BSD-3-Clause | DNS message parsing used by the mDNS library |
+
+### Android app (`android/`)
+
+| Dependency | License |
+|---|---|
+| AndroidX (core-ktx, activity-compose, lifecycle-*) | Apache-2.0 |
+| Jetpack Compose (ui, material3, compose-bom) | Apache-2.0 |
+| kotlinx-coroutines-android | Apache-2.0 |
+| [com.google.zxing:core](https://github.com/zxing/zxing) | Apache-2.0 — QR decoding for pairing (item 26) |
+| JUnit 4 (test only) | EPL-1.0 |
 
 ## Web UI (`web/`, build-time only — not embedded, only its build output is)
 

@@ -64,6 +64,20 @@ export const api = {
   search: (q: string) => fetch(`/api/runyx/search?q=${encodeURIComponent(q)}`).then((r) => json<Message[]>(r)),
   dashboard: () => fetch("/api/runyx/dashboard").then((r) => json<DashboardStats>(r)),
   models: () => fetch("/v1/models").then((r) => json<{ data: { id: string }[] }>(r)),
+  transcribeAudio: (blob: Blob): Promise<{ text: string; warnings?: string[] }> => {
+    const form = new FormData();
+    form.append("file", blob, "recording.webm");
+    return fetch("/api/runyx/voice/transcribe", { method: "POST", body: form }).then((r) => json(r));
+  },
+  synthesizeSpeech: async (text: string): Promise<Blob> => {
+    const res = await fetch("/api/runyx/voice/synthesize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Text: text }),
+    });
+    if (!res.ok) throw new Error(`synthesize failed: HTTP ${res.status}`);
+    return res.blob();
+  },
   uploadAttachment: (file: File) => {
     const form = new FormData();
     form.append("file", file);

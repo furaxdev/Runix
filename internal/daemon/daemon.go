@@ -16,6 +16,7 @@ import (
 	"github.com/furaxdev/runyx/internal/hwdetect"
 	"github.com/furaxdev/runyx/internal/interpreter"
 	"github.com/furaxdev/runyx/internal/modelstore"
+	"github.com/furaxdev/runyx/internal/remote"
 	"github.com/furaxdev/runyx/internal/vision"
 	"github.com/furaxdev/runyx/internal/voice"
 )
@@ -40,6 +41,14 @@ type Daemon struct {
 	// default, explicit opt-in" per §7.
 	Agent       *agent.Agent
 	Interpreter *interpreter.Interpreter
+
+	// Synthesizer is nil unless Piper is found on PATH.
+	Synthesizer *voice.Synthesizer
+
+	// Remote holds any configured remote-API fallback providers (item
+	// 28); empty unless the user added one in config.toml. Never used
+	// automatically — see internal/remote's package doc.
+	Remote *remote.Router
 
 	stopEviction context.CancelFunc
 }
@@ -83,6 +92,10 @@ func New(cfg config.Config, backendBinary string) (*Daemon, error) {
 	if whisperBin, err := exec.LookPath("whisper-cli"); err == nil {
 		d.Transcriber = &voice.Transcriber{BinaryPath: whisperBin}
 	}
+	if piperBin, err := exec.LookPath("piper"); err == nil {
+		d.Synthesizer = &voice.Synthesizer{BinaryPath: piperBin}
+	}
+	d.Remote = &remote.Router{Providers: map[string]remote.Provider{}}
 
 	if cfg.AgentWorkDir != "" {
 		// No ApprovalFunc is wired here: the daemon has no synchronous

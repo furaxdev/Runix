@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/furaxdev/runyx/internal/api"
@@ -42,6 +43,22 @@ func (d *Daemon) NewHTTPServer() *http.Server {
 		DeviceRevoker: d.Auth.Revoke,
 	}
 	perms.RegisterPermissions(mux)
+
+	_, portStr, _ := net.SplitHostPort(d.Config.ListenAddr)
+	port, _ := strconv.Atoi(portStr)
+	voiceExtras := &api.VoiceExtras{
+		Transcriber: d.Transcriber,
+		Synthesizer: d.Synthesizer,
+		PairPort:    port,
+		IssueToken: func(deviceName string) (string, error) {
+			dev, err := d.Auth.Issue(deviceName)
+			return dev.Token, err
+		},
+	}
+	voiceExtras.RegisterVoice(mux)
+
+	remoteExtras := &api.RemoteExtras{Router: d.Remote}
+	remoteExtras.RegisterRemote(mux)
 
 	registerStaticUI(mux)
 

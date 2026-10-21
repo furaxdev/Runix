@@ -27,6 +27,10 @@ const dict: Record<Lang, Record<string, string>> = {
     editAndFork: "Modifier (crée une branche)",
     branches: "Branches",
     reduceMotion: "Réduire les animations",
+    recordVoice: "Parler (push-to-talk)",
+    recording: "Enregistrement... cliquez pour arrêter",
+    listenReply: "Écouter la réponse",
+    stopListening: "Arrêter la lecture",
   },
   en: {
     newChat: "New conversation",
@@ -54,6 +58,10 @@ const dict: Record<Lang, Record<string, string>> = {
     editAndFork: "Edit (forks a branch)",
     branches: "Branches",
     reduceMotion: "Reduce motion",
+    recordVoice: "Talk (push-to-talk)",
+    recording: "Recording... click to stop",
+    listenReply: "Listen to reply",
+    stopListening: "Stop playback",
   },
 };
 

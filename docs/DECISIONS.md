@@ -68,6 +68,31 @@ should be scoped per-project, and how a user reviews/revokes persisted
 for that UI once it exists). Tracked as a near-term follow-up, not
 forgotten.
 
+## 2026-10-21 — Android QR pairing decodes a captured photo, not a live
+camera scan
+
+A live scanning UI needs CameraX (a `PreviewView` + an `ImageAnalysis`
+use case) wired up correctly, which is meaningfully more surface area
+and more places to get wrong than a one-shot photo. For a first pairing
+flow, the standard `ACTION_IMAGE_CAPTURE`-style photo picker
+(`TakePicturePreview` in Compose) plus zxing's pure-Java decoder gets
+the same outcome — the user photographs the PC's on-screen QR code —
+with far less code and no extra heavyweight dependency. Revisit with
+CameraX once the pairing flow needs to feel instant rather than
+"take a photo, wait a second."
+
+## 2026-10-21 — WireGuard/Tailscale is "bring your own VPN", not bundled
+
+Item 28 mentions WireGuard/Tailscale for remote access. Both are
+substantial pieces of software (WireGuard needs a kernel module or
+userspace implementation and key management; Tailscale is a whole
+separate daemon and account system) that don't belong vendored into
+Runyx. The realistic integration is: Runyx binds normally on the LAN or
+over whatever VPN interface the user already has running, and pairing
+works the same either way since it's just an IP + port + token. No
+code change was needed for this to already work; what's explicitly NOT
+done is any Runyx-side WireGuard/Tailscale setup automation.
+
 ## 2026-10-21 — `runyx` talks to `runyxd` over plain HTTP on 127.0.0.1, no
 Unix socket
 
