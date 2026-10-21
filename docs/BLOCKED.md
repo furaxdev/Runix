@@ -42,6 +42,19 @@ offload, the `BestBackend()` selection beyond "cpu-avx2") is implemented
 and its selection *logic* is unit tested with synthetic hardware info,
 but never run against real GPU hardware.
 
+## Cannot push git tags to the remote from this sandbox
+
+`git push origin <branch>` works fine, but `git push origin <tag>`
+consistently fails with HTTP 403 (confirmed with both annotated and
+lightweight tags, and with tag deletion) — the Claude GitHub App's
+credentials for this session appear scoped to branch refs only, not tag
+refs. Tags (`m1-done`, `m2-done`, etc.) are still created locally in this
+session's clone so the milestone history is correct in the commit graph,
+but they won't appear on `github.com/furaxdev/Runyx` until someone with
+full push access runs `git push origin --tags` from a clone that has
+them (or recreates them from the commit hashes recorded in this file and
+in commit messages).
+
 ## No real microphone / speaker
 
 Push-to-talk and hands-free voice interaction (item 25) need a real audio
