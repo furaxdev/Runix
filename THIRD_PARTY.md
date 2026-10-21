@@ -7,6 +7,10 @@ and their licenses, checked for compatibility with MIT distribution.
 |---|---|---|
 | [github.com/BurntSushi/toml](https://github.com/BurntSushi/toml) | MIT | Config file (`config.toml`) parsing |
 | [golang.org/x/sync](https://pkg.go.dev/golang.org/x/sync) | BSD-3-Clause | `errgroup` for parallel chunked downloads |
+| [modernc.org/sqlite](https://gitlab.com/cznic/sqlite) | BSD-3-Clause (SQLite core itself is Public Domain) | Local history (conversations, branches, FTS search) — pure Go, no cgo |
+| [github.com/google/uuid](https://github.com/google/uuid) | BSD-3-Clause | Message/conversation IDs |
+| [gopkg.in/yaml.v3](https://github.com/go-yaml/yaml) | MIT / Apache-2.0 | Runfile parsing |
+| [github.com/ledongthuc/pdf](https://github.com/ledongthuc/pdf) | MIT | PDF text extraction for universal attachments (item 17) |
 
 No code from Ollama was copied or consulted — the `/api/*` compatibility
 layer in `internal/api` is implemented purely from Ollama's public API
