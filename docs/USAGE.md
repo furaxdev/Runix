@@ -67,6 +67,23 @@ Reaching the API from another machine (an explicit opt-in — change
 tokens via the CLI is tracked as a short follow-up (the `daemon.TokenStore`
 API already supports it).
 
+## Vision bridge (item 31) — optional OCR dependency
+
+Image attachments to non-vision models are analyzed by an optional
+small auxiliary vision model (pulled like any other model) plus local
+OCR via [Tesseract](https://github.com/tesseract-ocr/tesseract), which
+Runyx does not bundle or auto-install (unlike the llama.cpp/whisper.cpp
+binaries, Tesseract has no single official per-OS/arch release
+artifact). Install it yourself if you want OCR:
+
+- Debian/Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-fra`
+- macOS: `brew install tesseract tesseract-lang`
+- Windows: the [UB-Mannheim installer](https://github.com/UB-Mannheim/tesseract/wiki)
+
+Without Tesseract and without an auxiliary vision model installed,
+Runyx reports a clear error rather than silently skipping image
+analysis.
+
 ## Known limitations in this milestone
 
 - `runyx pull` always re-downloads rather than consulting mirrors; mirror
