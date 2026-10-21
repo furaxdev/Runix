@@ -6,12 +6,16 @@ package daemon
 import (
 	"context"
 	"log"
+	"os/exec"
 	"time"
 
 	"github.com/furaxdev/runyx/internal/backend"
 	"github.com/furaxdev/runyx/internal/config"
+	"github.com/furaxdev/runyx/internal/history"
 	"github.com/furaxdev/runyx/internal/hwdetect"
 	"github.com/furaxdev/runyx/internal/modelstore"
+	"github.com/furaxdev/runyx/internal/vision"
+	"github.com/furaxdev/runyx/internal/voice"
 )
 
 // Daemon holds everything the HTTP API needs to serve requests.
@@ -21,6 +25,13 @@ type Daemon struct {
 	Store   *modelstore.Store
 	Manager *backend.Manager
 	Auth    *TokenStore
+	History *history.Store
+
+	// Transcriber and Vision are optional: nil when whisper.cpp / OCR
+	// aren't available, in which case the corresponding API endpoints
+	// degrade to a clear error instead of being wired up at all.
+	Transcriber *voice.Transcriber
+	Vision      *vision.Bridge
 
 	stopEviction context.CancelFunc
 }
@@ -44,13 +55,27 @@ func New(cfg config.Config, backendBinary string) (*Daemon, error) {
 	hw := hwdetect.Detect()
 	mgr := backend.NewManager(backendBinary, time.Duration(cfg.IdleUnloadSeconds)*time.Second, cfg.VRAMBudgetMB)
 
+	hist, err := history.Open(cfg.DataDir)
+	if err != nil {
+		return nil, err
+	}
+
 	d := &Daemon{
 		Config:  cfg,
 		HW:      hw,
 		Store:   store,
 		Manager: mgr,
 		Auth:    auth,
+		History: hist,
 	}
+
+	if vision.Available() {
+		d.Vision = &vision.Bridge{OCR: vision.OCR{Languages: "fra+eng"}, CachePath: cfg.DataDir + "/vision_cache.json"}
+	}
+	if whisperBin, err := exec.LookPath("whisper-cli"); err == nil {
+		d.Transcriber = &voice.Transcriber{BinaryPath: whisperBin}
+	}
+
 	return d, nil
 }
 
@@ -75,10 +100,14 @@ func (d *Daemon) StartEvictionLoop(ctx context.Context) {
 	}()
 }
 
-// Shutdown stops the eviction loop and every running model backend.
+// Shutdown stops the eviction loop, every running model backend, and
+// closes the history database.
 func (d *Daemon) Shutdown() {
 	if d.stopEviction != nil {
 		d.stopEviction()
 	}
 	d.Manager.StopAll()
+	if d.History != nil {
+		d.History.Close()
+	}
 }

@@ -12,6 +12,16 @@ and their licenses, checked for compatibility with MIT distribution.
 | [gopkg.in/yaml.v3](https://github.com/go-yaml/yaml) | MIT / Apache-2.0 | Runfile parsing |
 | [github.com/ledongthuc/pdf](https://github.com/ledongthuc/pdf) | MIT | PDF text extraction for universal attachments (item 17) |
 
+## Web UI (`web/`, build-time only — not embedded, only its build output is)
+
+| Package | License |
+|---|---|
+| svelte | MIT |
+| @sveltejs/vite-plugin-svelte | MIT |
+| vite | MIT |
+| typescript | Apache-2.0 |
+| svelte-check | MIT |
+
 No code from Ollama was copied or consulted — the `/api/*` compatibility
 layer in `internal/api` is implemented purely from Ollama's public API
 documentation (https://github.com/ollama/ollama/blob/main/docs/api.md).

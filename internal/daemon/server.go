@@ -16,6 +16,12 @@ func (d *Daemon) NewHTTPServer() *http.Server {
 	mux := http.NewServeMux()
 	apiServer := api.NewServer(d.Store, d.Manager, d.HW)
 	apiServer.Register(mux)
+	apiServer.RegisterRunyx(mux, &api.RunyxExtras{
+		History:     d.History,
+		Transcriber: d.Transcriber,
+		Vision:      d.Vision,
+	})
+	registerStaticUI(mux)
 
 	return &http.Server{
 		Addr:              d.Config.ListenAddr,

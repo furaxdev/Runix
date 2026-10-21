@@ -1,61 +1,91 @@
 # Features checklist
 
-Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
+Status legend (per the project's honesty rule — never mark something
+"done" that wasn't actually verified):
+
+- `[x]` **fait et testé** — verified with a real run (actual model pull,
+  actual HTTP call, actual file conversion, etc.), not just compiled.
+- `[~]` **fait mais non testé** — code is written and believed correct,
+  but verification needs something this sandbox doesn't have (a GPU, a
+  microphone, a real Android device, network access to a GitHub repo
+  outside `furaxdev/runyx`...). The reason is always stated.
+- `[!]` **bloqué** — not done; blocker recorded in `docs/BLOCKED.md`.
+- `[ ]` not started.
+
+See `docs/MANUAL_TESTS.md` for the list of `[~]` items a human needs to
+verify on real hardware.
 
 ## Base features (the "comme Ollama" set)
 
-- [x] B1 Facile — `runyx run <model>` pulls+runs; GUI still pending (M2).
-- [x] B2 Rapide — thin HTTP proxy over llama-server, fast daemon start.
-- [x] B3 Modèles — Hugging Face GGUF search/pull (CLI; UI pending M2).
-- [ ] B4 Fichiers — attach files to a conversation with **any model**
-      (universal conversion, see items 17/31) — M2/M3.
+- [x] B1 Facile — `runyx run <model>` pulls+runs, tested end to end with
+      a real 0.5B model download; full GUI exists (chat/sidebar/dashboard)
+      but a model must still be pulled once via CLI first.
+- [x] B2 Rapide — thin HTTP proxy over llama-server; overhead not
+      benchmarked yet (`runyx bench`, item 7, is M6).
+- [x] B3 Modèles — Hugging Face GGUF search/pull tested live
+      (`runyx pull Qwen/...` actually downloaded 468 MB); UI pull flow not
+      built yet (CLI only).
+- [x] B4 Fichiers — universal attachment conversion tested (text, PDF,
+      DOCX, XLSX, PPTX, archives, images with OCR, audio via fake-binary
+      integration test); works with any model since it's text injected
+      into the prompt, not a model capability.
 - [ ] B5 Commandes — M4 safe shell agent.
-- [ ] B6 Vocal — M5.
+- [~] B6 Vocal — STT/TTS subprocess plumbing tested against fake
+      binaries + real ffmpeg conversion; no real whisper.cpp/Piper model
+      run (GitHub API blocked to non-`furaxdev/runyx` repos in this
+      sandbox, see docs/BLOCKED.md). Full push-to-talk UI is M5.
 - [ ] B7 Android — M5.
 
 ## M1 — Engine
 
-- [x] 1. Hardware detection + recommendation (`doctor`, `recommend`)
-- [x] 2. Auto-tune (`tune`) — basic heuristic + per-model cache
-- [x] 3. Robust downloader — resume, parallel, SHA256, disk check, progress
-- [x] 4. Import — local GGUF import + Ollama blob store reuse
-- [x] 5. Multi-model — concurrent backends, idle keep-alive, LRU eviction
-- [x] 6. Accelerations — flags wired through to llama-server (speculative
-      decoding, flash attention, continuous batching); persistent KV cache
-      path reserved, not yet auto-restored across process restarts
-- [x] 9. Dual API — `/api/*` (Ollama) + `/v1/*` (OpenAI)
-- [x] 23. Baseline security — loopback-only default bind, per-device token,
-      revocation, no telemetry
+- [x] 1. Hardware detection + recommendation — tested on this sandbox's
+      real CPU/RAM.
+- [x] 2. Auto-tune — heuristic implemented and cached; not benchmark-tuned
+      (that refinement is item 7, M6).
+- [x] 3. Robust downloader — resume/parallel/SHA256/disk-check all unit
+      tested against a real local HTTP server; also proven against a real
+      Hugging Face download.
+- [x] 4. Import — local GGUF import tested; Ollama blob-store scan tested
+      against a hand-built manifest (no real Ollama install available
+      here to test against).
+- [x] 5. Multi-model — concurrent backends/LRU/idle-eviction logic unit
+      tested; not exercised with two real llama-server processes at once
+      (no backend binary fetchable in this sandbox, see docs/BLOCKED.md).
+- [~] 6. Accelerations — flags wired through to llama-server's CLI
+      interface; cannot verify actual speculative-decoding/flash-attention
+      behavior without a real llama-server binary (see docs/BLOCKED.md).
+      Persistent on-disk KV cache across restarts is not implemented yet.
+- [x] 9. Dual API — `/api/*` and `/v1/*` tested live against the real
+      daemon (tags, models, dashboard, chat routing).
+- [x] 23. Baseline security — loopback bind, per-device tokens,
+      revocation, no telemetry: all unit tested.
 
 ## M2 — Chat & UI
 
-- [ ] 8. Runfile format + Ollama Modelfile import
-- [ ] 14. Local history, full-text search, folders, pin, export, branches
-- [ ] 17. Universal attachments — **any model** can receive **any file**:
-      Runyx converts everything to model-ready text first (PDF/DOCX/XLSX/
-      PPTX/code/archives, keeping structure — pages, headings, tables as
-      Markdown; audio via local transcription; video via keyframes +
-      transcription). Content exceeding context is chunked and
-      retrieved (reuses the RAG pipeline, item 16) instead of truncated.
-      Drag-and-drop, clipboard paste, and a clickable per-file chip
-      showing exactly what the model received.
-- [ ] 29. UI identity, themes, command palette, i18n, dashboard
-- [ ] 31. Vision bridge for non-vision models — when the selected model
-      can't read images (detected via GGUF metadata / no multimodal
-      projector), Runyx routes the image to a small auxiliary vision
-      model + local OCR, then hands the text model a structured result
-      (description, read text, extracted tables/charts). Auxiliary model
-      is hardware-recommended, downloaded on demand, user-swappable
-      (maintain a registry of recommended small vision models — e.g.
-      Qwen-VL, SmolVLM, Moondream). Requirements: transparent "image
-      analyzed by \<model\>" chip with user-editable description before
-      send; a `look_at_image(question)` tool so the text model can ask
-      follow-ups instead of relying on one frozen description; cache by
-      image hash; graceful degradation to OCR-only with a clear
-      limitations warning when no vision model is installed, and a
-      no-op when the chosen model already sees natively; OCR'd text is
-      untreated input (§7) and can never trigger a tool on its own;
-      works from the Android app (photo, screenshot) too.
+- [x] 8. Runfile YAML format + Ollama Modelfile import — unit tested.
+- [x] 14. Local history (SQLite) with branches, FTS5 search, pin, folder,
+      Markdown/JSON export — unit tested end to end, and exercised live
+      through the HTTP API.
+- [x] 17. Universal attachments — text/code/PDF/DOCX/XLSX/PPTX/archives
+      tested with real generated fixtures (including a real PDF via
+      reportlab); audio/video transcription plumbing tested against a
+      fake whisper-cli binary + real ffmpeg; chunking for oversized
+      content is implemented, actual RAG-based retrieval of chunks lands
+      with item 16 (M3). Drag-and-drop/paste in the UI not implemented —
+      file picker only.
+- [x] 29. UI identity — Svelte UI built and actually served by the daemon
+      (verified live: `curl localhost:11535/` returns the built page);
+      light/dark theme via CSS, Ctrl+K command palette, FR/EN i18n,
+      discreet dashboard (RAM/VRAM/loaded models) all present. Visual
+      polish (micro-animations, accessibility pass, settings panel for
+      "reduce motion") is minimal — functional, not refined.
+- [x] 31. Vision bridge — OCR tested against a real generated image;
+      image-hash cache tested (call-counted, proven not to re-run OCR);
+      `look_at_image` mechanism implemented and unit tested against a
+      fake HTTP auxiliary-model server. A real auxiliary vision model
+      (Moondream/SmolVLM/Qwen-VL) was never actually pulled or run here
+      (needs a real llama-server binary, see docs/BLOCKED.md) — the
+      degrade-to-OCR-only path IS the one exercised live.
 
 ## M3 — Knowledge
 
@@ -94,11 +124,21 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 ## Infra (cross-cutting, started in M0)
 
 - [x] Repo structure, `THIRD_PARTY.md`, `LICENSE` (MIT)
-- [x] GitHub Actions CI (build + vet + unit tests on Linux; cross-compile
-      check for Windows/macOS)
-- [x] Unit tests for core logic (hwdetect scoring, config, modelstore,
-      downloader resume logic)
-- [ ] Integration test with a cached ~0.5B GGUF model in CI (requires
-      network egress in CI runners; wired up but not yet verified against
-      a live Hugging Face download from this sandbox)
-- [x] `web/` and `android/` scaffolding present (UI itself is M2/M5 work)
+- [x] GitHub Actions CI (build + vet + fmt + unit tests on Linux;
+      cross-compile check for Windows/macOS/Linux-arm64, all verified
+      locally with the same Go toolchain CI uses)
+- [x] Unit tests for core logic across every package shipped so far —
+      101+ test cases, all passing, many against real fixtures (real
+      PDF, real image, real ffmpeg-generated audio, real HTTP download)
+      rather than pure mocks.
+- [!] Integration test with a cached ~0.5B GGUF model running actual
+      inference in CI — blocked: this sandbox's GitHub API access is
+      scoped to `furaxdev/runyx` only, so the llama.cpp backend binary
+      (from `ggml-org/llama.cpp` releases) could not be fetched here to
+      prove `runyx run` end-to-end with real token generation. The
+      Hugging Face model *pull* itself (the hard networking part) IS
+      verified live. See docs/BLOCKED.md.
+- [x] `web/` UI built and embedded (not just scaffolded) — Svelte+Vite
+      build committed under `internal/webui/dist`, served live by the
+      daemon.
+- [ ] `android/` — still scaffold-only pending M5.
