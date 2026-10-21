@@ -63,9 +63,38 @@ func File(path string) (Result, error) {
 		return convertPPTX(path, name)
 	case ext == ".zip":
 		return convertArchive(path, name)
+	case audioExtensions[ext]:
+		return Result{}, errNeedsTranscription{Kind: "audio"}
+	case videoExtensions[ext]:
+		return Result{}, errNeedsTranscription{Kind: "video"}
 	default:
 		return Result{}, fmt.Errorf("unsupported file type %q (no converter for %s)", ext, name)
 	}
+}
+
+var audioExtensions = map[string]bool{
+	".mp3": true, ".wav": true, ".m4a": true, ".flac": true, ".ogg": true, ".opus": true,
+}
+
+var videoExtensions = map[string]bool{
+	".mp4": true, ".mov": true, ".mkv": true, ".webm": true, ".avi": true,
+}
+
+// errNeedsTranscription signals that converting this file needs the
+// voice pipeline (internal/voice), which File() doesn't depend on to
+// keep convert dependency-free; callers with a voice.Transcriber should
+// catch this and call AudioToText/VideoToText instead.
+type errNeedsTranscription struct{ Kind string }
+
+func (e errNeedsTranscription) Error() string {
+	return fmt.Sprintf("%s files need local transcription (internal/voice); call convert.AudioToText or convert.VideoToText", e.Kind)
+}
+
+// NeedsTranscription reports whether err indicates a file that File()
+// recognized but can't convert without a voice.Transcriber.
+func NeedsTranscription(err error) bool {
+	_, ok := err.(errNeedsTranscription)
+	return ok
 }
 
 func convertText(path, name string) (Result, error) {
