@@ -122,12 +122,50 @@ verify on real hardware.
 
 ## M4 — Agent
 
-- [ ] 10. MCP client + server
-- [ ] 11. Tool calling + structured output (JSON schema / GBNF)
-- [ ] 21. Safe shell agent (allow/deny lists, approvals, diff preview, audit
-      log, git-snapshot undo)
-- [ ] 22. Sandboxed code interpreter
-- [ ] 24. Permissions center
+- [x] 10. MCP — client (JSON-RPC 2.0 over stdio, hand-rolled, no SDK
+      dependency) and server (`runyx mcp-serve`, exposing `web_search`
+      today). Client↔server tested over real OS pipes AND as a real
+      subprocess (`runyx mcp-serve` built and launched for real, talked
+      to over its actual stdin/stdout — not simulated). The shell agent
+      and code interpreter are deliberately NOT exposed over MCP (no
+      approval UI exists across that transport yet — see §7 reasoning
+      in cmd/runyx/cmd_mcp_serve.go). No external MCP servers were
+      actually connected to in this sandbox (would need a real one
+      installed) — client plumbing is tested against this project's own
+      server instead.
+- [x] 11. Tool calling + structured output — llama-server's own
+      "tools"/"tool_choice" and "response_format" (json_schema/grammar)
+      fields already pass through untouched via the existing
+      /v1/chat/completions proxy (M1); `internal/tools` adds the Go-side
+      piece (registering functions, parsing tool_calls, dispatching).
+      Unit tested; not exercised against a real model's actual tool-call
+      output (needs a real llama-server + tool-capable model, same
+      fetch blocker as M1 — see docs/BLOCKED.md). Not yet exposed as a
+      UI toggle.
+- [x] 21. Safe shell agent — work-dir confinement, allow/deny lists,
+      sudo/su/doas permanently refused (not even configurable), path-
+      escape detection, approval scopes (once/session/always — "always"
+      is in-memory only, not yet persisted across restarts, see
+      docs/DECISIONS.md), git-snapshot-based undo, JSONL audit log.
+      Tested with **real shell commands and a real git repository**
+      (file creation, diffs, undo-to-a-prior-snapshot all verified).
+      Fails closed (refuses everything) when no approval mechanism is
+      wired up — which is the daemon's current default, since there's
+      no interactive approval UI yet (see docs/BLOCKED.md): the
+      building block is done and tested, the "ask the user and wait"
+      UI loop is not.
+- [x] 22. Sandboxed code interpreter — restricted (not truly isolated,
+      see the package doc comment and docs/BLOCKED.md) Python
+      subprocess: work-dir scoped, timeout-enforced, stripped
+      environment, new-file detection. Tested with **real Python 3
+      execution** (stdout/stderr/exit codes, a real timeout firing, a
+      real generated file detected, real environment stripping
+      verified).
+- [x] 24. Permissions center — read model aggregating shell-agent
+      policy, vision/voice availability, and device tokens (reusing
+      daemon.TokenStore), plus device revocation. Tested over HTTP. The
+      "modifiable en un clic" part is a UI concern — the API exists,
+      a settings screen consuming it doesn't yet.
 
 ## M5 — Voice & Android
 

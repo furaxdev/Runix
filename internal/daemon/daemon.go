@@ -9,10 +9,12 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/furaxdev/runyx/internal/agent"
 	"github.com/furaxdev/runyx/internal/backend"
 	"github.com/furaxdev/runyx/internal/config"
 	"github.com/furaxdev/runyx/internal/history"
 	"github.com/furaxdev/runyx/internal/hwdetect"
+	"github.com/furaxdev/runyx/internal/interpreter"
 	"github.com/furaxdev/runyx/internal/modelstore"
 	"github.com/furaxdev/runyx/internal/vision"
 	"github.com/furaxdev/runyx/internal/voice"
@@ -32,6 +34,12 @@ type Daemon struct {
 	// degrade to a clear error instead of being wired up at all.
 	Transcriber *voice.Transcriber
 	Vision      *vision.Bridge
+
+	// Agent and Interpreter are nil unless Config.AgentWorkDir /
+	// InterpreterWorkDir are explicitly set — both are "off by
+	// default, explicit opt-in" per §7.
+	Agent       *agent.Agent
+	Interpreter *interpreter.Interpreter
 
 	stopEviction context.CancelFunc
 }
@@ -74,6 +82,21 @@ func New(cfg config.Config, backendBinary string) (*Daemon, error) {
 	}
 	if whisperBin, err := exec.LookPath("whisper-cli"); err == nil {
 		d.Transcriber = &voice.Transcriber{BinaryPath: whisperBin}
+	}
+
+	if cfg.AgentWorkDir != "" {
+		// No ApprovalFunc is wired here: the daemon has no synchronous
+		// way to prompt a human over HTTP yet (that needs a real
+		// pending-approval flow — see docs/BLOCKED.md). Until that
+		// lands, every command fails closed (refused) rather than ever
+		// defaulting to allowed; approvals can be granted by
+		// constructing *agent.Agent directly with a real ApprovalFunc
+		// (e.g. from a CLI prompt) instead of through this daemon path.
+		d.Agent = agent.New(agent.Policy{WorkDir: cfg.AgentWorkDir}, nil)
+		d.Agent.AuditLogDir = cfg.DataDir
+	}
+	if cfg.InterpreterWorkDir != "" {
+		d.Interpreter = &interpreter.Interpreter{WorkDir: cfg.InterpreterWorkDir}
 	}
 
 	return d, nil

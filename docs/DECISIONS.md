@@ -55,6 +55,19 @@ scope for M3) — but `internal/websearch.Client` is small enough to swap
 or extend with a second backend later if a user wants to point it at
 their own SearXNG.
 
+## 2026-10-21 — Shell agent's "always" approval scope is in-memory only
+(not yet persisted)
+
+`agent.Agent.alwaysApprovals` lives only for the process's lifetime.
+Persisting it (to the SQLite history DB, keyed by reason + maybe
+work-dir) is the obvious next step, but doing it safely needs a bit more
+design than this session had room for: what happens when the *reason*
+text is similar-but-not-identical across requests, whether approvals
+should be scoped per-project, and how a user reviews/revokes persisted
+"always" grants (the permissions center, item 24, is the natural home
+for that UI once it exists). Tracked as a near-term follow-up, not
+forgotten.
+
 ## 2026-10-21 — `runyx` talks to `runyxd` over plain HTTP on 127.0.0.1, no
 Unix socket
 

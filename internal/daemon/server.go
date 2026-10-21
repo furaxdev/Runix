@@ -24,6 +24,25 @@ func (d *Daemon) NewHTTPServer() *http.Server {
 	}
 	apiServer.RegisterRunyx(mux, extras)
 	apiServer.RegisterKnowledge(mux, extras)
+
+	agentExtras := &api.AgentExtras{Agent: d.Agent, Interpreter: d.Interpreter}
+	agentExtras.RegisterAgent(mux)
+
+	perms := &api.PermissionsCenter{
+		Agent:         d.Agent,
+		VisionEnabled: d.Vision != nil,
+		VoiceEnabled:  d.Transcriber != nil,
+		DeviceLister: func() []api.DeviceInfo {
+			var out []api.DeviceInfo
+			for _, dev := range d.Auth.List() {
+				out = append(out, api.DeviceInfo{ID: dev.ID, Name: dev.Name, CreatedAt: dev.CreatedAt.Format(time.RFC3339)})
+			}
+			return out
+		},
+		DeviceRevoker: d.Auth.Revoke,
+	}
+	perms.RegisterPermissions(mux)
+
 	registerStaticUI(mux)
 
 	return &http.Server{

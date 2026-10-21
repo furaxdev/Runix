@@ -32,6 +32,15 @@ type Config struct {
 	// VRAMBudgetMB caps total VRAM Runyx will try to use across loaded
 	// models. 0 means "auto-detect".
 	VRAMBudgetMB int `toml:"vram_budget_mb"`
+
+	// AgentWorkDir, if set, enables the safe shell agent (item 21)
+	// scoped to this directory. Empty (the default) disables it
+	// entirely — Runyx never runs shell commands out of the box.
+	AgentWorkDir string `toml:"agent_work_dir"`
+	// InterpreterWorkDir, if set, enables the sandboxed code
+	// interpreter (item 22) scoped to this directory. Empty (the
+	// default) disables it entirely, for the same reason.
+	InterpreterWorkDir string `toml:"interpreter_work_dir"`
 }
 
 // Default returns the configuration used when no config file exists yet.

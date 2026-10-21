@@ -84,6 +84,34 @@ Without Tesseract and without an auxiliary vision model installed,
 Runyx reports a clear error rather than silently skipping image
 analysis.
 
+## Agent & tools (M4)
+
+Enable the safe shell agent and/or the sandboxed code interpreter by
+setting their work directories in `config.toml` (both are off by
+default — Runyx never runs commands out of the box):
+
+```toml
+agent_work_dir = "/home/you/runyx-agent-workspace"
+interpreter_work_dir = "/home/you/runyx-interpreter-workspace"
+```
+
+- `POST /api/runyx/agent/execute` `{command, args, reason}` — runs a
+  shell command inside `agent_work_dir`. **Currently always refused**
+  when reached through `runyx serve`: no interactive approval UI exists
+  yet (see docs/BLOCKED.md). The policy/snapshot/audit/undo machinery
+  itself is implemented and tested; only the "ask a human and wait" loop
+  is missing.
+- `POST /api/runyx/agent/undo` `{snapshot_id}` — resets the work dir to
+  a prior git snapshot.
+- `POST /api/runyx/interpreter/run` `{code}` — runs Python inside
+  `interpreter_work_dir` (see the package doc comment in
+  `internal/interpreter` for what this restricted execution does and
+  does not isolate against).
+- `GET /api/runyx/permissions` — what's currently enabled (shell agent,
+  vision, voice, web search) and the list of device tokens.
+- `runyx mcp-serve` exposes Runyx's own tools (currently just
+  `web_search`) to any MCP-aware client over stdio.
+
 ## Known limitations in this milestone
 
 - `runyx pull` always re-downloads rather than consulting mirrors; mirror

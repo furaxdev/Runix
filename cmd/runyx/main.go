@@ -38,6 +38,8 @@ func main() {
 		err = cmdRemove(args)
 	case "show":
 		err = cmdShow(args)
+	case "mcp-serve":
+		err = cmdMCPServe(args)
 	case "help", "-h", "--help":
 		printUsage()
 		return
@@ -67,5 +69,6 @@ Usage:
   runyx list                  List installed models
   runyx show <model>           Show details about an installed model
   runyx rm <model>             Remove an installed model
+  runyx mcp-serve              Expose Runyx's tools over MCP (stdio)
 `)
 }
