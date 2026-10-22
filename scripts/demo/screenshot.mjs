@@ -50,7 +50,11 @@ async function setPrefs(page, theme, reduceMotion) {
 async function gotoReady(page) {
   await page.goto(BASE_URL, { waitUntil: "load" });
   await killAnimations(page);
-  await page.waitForSelector("nav", { timeout: 15000 });
+  // Not `nav`: the sidebar is deliberately display:none below 760px
+  // (phone width), so waiting for it to be *visible* would never
+  // resolve on the phone pass. `main` (the content area) is always
+  // rendered regardless of viewport.
+  await page.waitForSelector("main", { timeout: 15000 });
 }
 
 async function openTab(page, label) {
@@ -176,7 +180,10 @@ async function runPhonePass(browser) {
 
   await shoot(page, path.join(dir, "phone-01-home.png"));
 
-  await newChat(page);
+  // No sidebar at this width (it's display:none below 760px) and so no
+  // "New chat" quick-link to click — send straight from the home
+  // screen's composer, same as the desktop passes do; that implicitly
+  // creates the conversation.
   await sendAndWait(page, PROMPT);
   await shoot(page, path.join(dir, "phone-02-chat.png"));
 
