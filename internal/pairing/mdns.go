@@ -53,28 +53,41 @@ type Discovered struct {
 // clients (the Android app) to locate a PC without pairing yet.
 func Discover(ctx context.Context, timeout time.Duration) ([]Discovered, error) {
 	entriesCh := make(chan *mdns.ServiceEntry, 16)
-	var out []Discovered
+	var collected []*mdns.ServiceEntry
 	done := make(chan struct{})
 
+	// hashicorp/mdns keeps mutating a ServiceEntry's fields (e.g.
+	// AddrV4) after sending its pointer on the channel, for as long as
+	// mdns.Query below is still running — reading those fields from
+	// this goroutine concurrently with that is a data race in the
+	// library itself. So this goroutine only stores the pointers,
+	// never dereferences them; fields are read below only after
+	// mdns.Query has returned, which happens-after the library's last
+	// write to them.
 	go func() {
 		defer close(done)
 		for entry := range entriesCh {
-			host := entry.AddrV4.String()
-			if host == "<nil>" || host == "" {
-				host = entry.Host
-			}
-			out = append(out, Discovered{Name: entry.Name, Host: host, Port: entry.Port})
+			collected = append(collected, entry)
 		}
 	}()
 
 	params := mdns.DefaultParams(ServiceType)
 	params.Entries = entriesCh
 	params.Timeout = timeout
-	if err := mdns.Query(params); err != nil {
-		close(entriesCh)
-		return nil, fmt.Errorf("mdns query: %w", err)
-	}
+	queryErr := mdns.Query(params)
 	close(entriesCh)
 	<-done
+	if queryErr != nil {
+		return nil, fmt.Errorf("mdns query: %w", queryErr)
+	}
+
+	out := make([]Discovered, 0, len(collected))
+	for _, entry := range collected {
+		host := entry.AddrV4.String()
+		if host == "<nil>" || host == "" {
+			host = entry.Host
+		}
+		out = append(out, Discovered{Name: entry.Name, Host: host, Port: entry.Port})
+	}
 	return out, nil
 }

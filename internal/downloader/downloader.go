@@ -25,10 +25,10 @@ type Progress struct {
 	Total      int64 // 0 if unknown
 }
 
-// ProgressFunc is called periodically as bytes land on disk. It may be
-// called from multiple goroutines concurrently when Concurrency > 1;
-// implementations must be safe for that (the default CLI printer uses a
-// mutex internally).
+// ProgressFunc is called periodically as bytes land on disk. Even with
+// Concurrency > 1, calls are serialized by the downloader (never made
+// concurrently to each other), so implementations don't need their own
+// locking.
 type ProgressFunc func(Progress)
 
 // Options configures a Download call.
@@ -227,12 +227,16 @@ func downloadChunked(ctx context.Context, client *http.Client, url, part string,
 		}
 		g.Go(func() error {
 			if err := fetchRange(ctx, client, url, f, start, end, func(n int64) {
+				// Hold the lock across the callback itself, not just the
+				// counter update: callers' OnProgress implementations
+				// (including this CLI's own) aren't all written to be
+				// safe against concurrent invocation, so serialize calls
+				// here instead of pushing that burden onto every caller.
 				mu.Lock()
+				defer mu.Unlock()
 				downloaded += n
-				d := downloaded
-				mu.Unlock()
 				if opts.OnProgress != nil {
-					opts.OnProgress(Progress{Downloaded: d, Total: total})
+					opts.OnProgress(Progress{Downloaded: downloaded, Total: total})
 				}
 			}); err != nil {
 				return err
