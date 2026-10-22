@@ -23,6 +23,7 @@ and their licenses, checked for compatibility with MIT distribution.
 |---|---|
 | AndroidX (core-ktx, activity-compose, lifecycle-*) | Apache-2.0 |
 | Jetpack Compose (ui, material3, compose-bom) | Apache-2.0 |
+| androidx.compose.material:material-icons-extended | Apache-2.0 — the icon set used in the app (no emoji) |
 | kotlinx-coroutines-android | Apache-2.0 |
 | [com.google.zxing:core](https://github.com/zxing/zxing) | Apache-2.0 — QR decoding for pairing (item 26) |
 | JUnit 4 (test only) | EPL-1.0 |
@@ -36,6 +37,7 @@ and their licenses, checked for compatibility with MIT distribution.
 | vite | MIT |
 | typescript | Apache-2.0 |
 | svelte-check | MIT |
+| [lucide-svelte](https://github.com/lucide-icons/lucide) | ISC | The icon set used throughout the UI (no emoji) — its SVG icon components ARE bundled into the shipped build output, unlike the rest of this table. |
 
 No code from Ollama was copied or consulted — the `/api/*` compatibility
 layer in `internal/api` is implemented purely from Ollama's public API

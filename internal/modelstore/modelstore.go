@@ -63,6 +63,26 @@ func (s *Store) manifestPath() string {
 	return filepath.Join(s.dir, "models.json")
 }
 
+// DestPath returns the on-disk path a pulled repo:file would be saved
+// to, the single shared naming scheme used by both `runyx pull` and the
+// registry-driven server pull endpoint so they never disagree about
+// where a given download lands.
+func (s *Store) DestPath(repo, file string) string {
+	return filepath.Join(s.dir, sanitizeFilename(repo)+"__"+file)
+}
+
+func sanitizeFilename(s string) string {
+	out := make([]rune, 0, len(s))
+	for _, r := range s {
+		if r == '/' {
+			out = append(out, '_')
+		} else {
+			out = append(out, r)
+		}
+	}
+	return string(out)
+}
+
 func (s *Store) load() (manifest, error) {
 	data, err := os.ReadFile(s.manifestPath())
 	if os.IsNotExist(err) {

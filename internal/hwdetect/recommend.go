@@ -111,6 +111,48 @@ func Recommend(info Info) []Recommendation {
 	return out
 }
 
+// Fit is how comfortably a model of a known size should run on this
+// machine, used by the Models page's "Runs well on your machine" /
+// "Tight fit" / "Too large" badge. Unlike Recommend (which estimates a
+// size from a parameter count and a chosen quantization), this takes
+// the registry's actual, verified download size directly — no
+// estimation needed.
+type Fit string
+
+const (
+	FitComfortable Fit = "comfortable"
+	FitOK          Fit = "ok"
+	FitTight       Fit = "tight"
+	FitTooLarge    Fit = "too_large"
+)
+
+// FitFor classifies sizeBytes against this machine's available budget
+// (VRAM if a capable GPU is present, otherwise system RAM), the same
+// 80%-of-budget headroom rule Recommend uses.
+func FitFor(info Info, sizeBytes int64) Fit {
+	budgetMB := info.TotalVRAMMB()
+	usingGPU := budgetMB > 0 && info.BestBackend() != "cpu" && info.BestBackend() != "cpu-avx2"
+	if !usingGPU {
+		budgetMB = info.TotalRAMMB
+	}
+	usable := int64(float64(budgetMB) * 0.8 * 1024 * 1024) // MB -> bytes
+	if usable <= 0 {
+		return FitOK // unknown hardware budget; don't claim "too large" without evidence
+	}
+	if sizeBytes > usable {
+		return FitTooLarge
+	}
+	pctFree := 100 - int(float64(sizeBytes)/float64(usable)*100)
+	switch {
+	case pctFree >= 50:
+		return FitComfortable
+	case pctFree >= 20:
+		return FitOK
+	default:
+		return FitTight
+	}
+}
+
 func headroomLabel(pctFree int) string {
 	switch {
 	case pctFree >= 50:

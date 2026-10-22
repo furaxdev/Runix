@@ -73,3 +73,26 @@ func TestTuneCPUOnlyWhenNoGPU(t *testing.T) {
 		t.Errorf("Threads = %d, want 4", p.Threads)
 	}
 }
+
+func TestFitForClassification(t *testing.T) {
+	info := Info{TotalRAMMB: 16384} // 16GB RAM, no GPU
+	cases := []struct {
+		sizeBytes int64
+		want      Fit
+	}{
+		{500 * 1024 * 1024, FitComfortable},           // 500MB, tiny
+		{int64(16384) * 1024 * 1024 * 2, FitTooLarge}, // 2x total RAM
+	}
+	for _, c := range cases {
+		if got := FitFor(info, c.sizeBytes); got != c.want {
+			t.Errorf("FitFor(%d bytes) = %q, want %q", c.sizeBytes, got, c.want)
+		}
+	}
+}
+
+func TestFitForUnknownBudgetNeverClaimsTooLarge(t *testing.T) {
+	info := Info{} // nothing detected
+	if got := FitFor(info, 50*1024*1024*1024); got == FitTooLarge {
+		t.Errorf("FitFor with unknown budget = %q, should not claim too_large without evidence", got)
+	}
+}

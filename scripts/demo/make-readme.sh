@@ -40,14 +40,15 @@ for theme_label in "Light theme:light" "Dark theme:dark"; do
   fi
   echo "## $label" >> "$README"
   echo >> "$README"
-  cap "$theme" "01-home-empty.png" "Home — no conversation yet"
+  cap "$theme" "01-home.png" "Home — greeting, centered composer, shortcuts"
   cap "$theme" "02-command-palette.png" "Command palette (Ctrl+K)"
   cap "$theme" "03-conversation-response.png" "A real conversation, model reply complete"
   cap "$theme" "04-attachment.png" "An attachment added to a message, before sending"
-  cap "$theme" "05-models.png" "Models page (list + pull)"
-  cap "$theme" "06-pairing-qrcode.png" "Mobile pairing — QR code"
-  cap "$theme" "07-settings-permissions.png" "Settings & permissions center"
-  cap "$theme" "08-dashboard.png" "Dashboard (RAM, backend, loaded models)"
+  cap "$theme" "05-models.png" "Models page — Installed / Recommended / Browse all"
+  cap "$theme" "06-agent.png" "Agent & permissions center"
+  cap "$theme" "07-pairing-qrcode.png" "Mobile pairing — QR code"
+  cap "$theme" "08-settings.png" "Settings (appearance)"
+  cap "$theme" "09-sidebar-collapsed.png" "Collapsed sidebar, with the device card"
 done
 
 if [ -f "$OUT_DIR/screenshots/phone-01-home.png" ]; then

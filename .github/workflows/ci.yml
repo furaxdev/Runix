@@ -34,6 +34,20 @@ jobs:
       - name: go test
         run: go test -race ./...
 
+      - name: No emoji in source/docs
+        run: sh scripts/check-no-emoji.sh
+
+  verify-registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify every registry entry resolves on Hugging Face
+        run: go run ./cmd/verify-registry
+
   cross-compile:
     runs-on: ubuntu-latest
     strategy:

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -22,7 +21,7 @@ func cmdPull(args []string) error {
 	}
 	repo, file := splitRepoFile(args[0])
 
-	cfg, store, err := loadStore()
+	_, store, err := loadStore()
 	if err != nil {
 		return err
 	}
@@ -41,7 +40,7 @@ func cmdPull(args []string) error {
 	}
 
 	url := downloader.FileURL(repo, file)
-	dest := filepath.Join(cfg.ModelsDir, sanitizeFilename(repo)+"__"+file)
+	dest := store.DestPath(repo, file)
 
 	name := args[0]
 	fmt.Printf("Pulling %s...\n", name)
@@ -96,10 +95,6 @@ func pickBestGGUF(files []string) string {
 	sorted := append([]string{}, files...)
 	sort.Strings(sorted)
 	return sorted[0]
-}
-
-func sanitizeFilename(s string) string {
-	return strings.ReplaceAll(s, "/", "_")
 }
 
 func humanBytes(n int64) string {

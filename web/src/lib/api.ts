@@ -55,6 +55,43 @@ export interface PermissionsSnapshot {
   devices: DeviceInfo[];
 }
 
+export type Fit = "comfortable" | "ok" | "tight" | "too_large";
+
+export interface RegistryModel {
+  id: string;
+  name: string;
+  publisher: string;
+  family: string;
+  params_b: number;
+  repo: string;
+  file: string;
+  size_bytes: number;
+  license: string;
+  mmproj_file?: string;
+  hf_url: string;
+  description: string;
+  capabilities: string[];
+  context_length: number;
+  installed: boolean;
+  fit: Fit;
+  pull_spec: string;
+}
+
+export interface Project {
+  ID: string;
+  Name: string;
+  SystemPrompt: string;
+  FilesDir: string;
+}
+
+export interface PullProgress {
+  downloaded?: number;
+  total?: number;
+  done: boolean;
+  name?: string;
+  error?: string;
+}
+
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -91,14 +128,62 @@ export const api = {
   dashboard: () => fetch("/api/runyx/dashboard").then((r) => json<DashboardStats>(r)),
   models: () => fetch("/v1/models").then((r) => json<{ data: { id: string }[] }>(r)),
   tags: () => fetch("/api/tags").then((r) => json<{ models: ModelEntry[] }>(r)),
-  pull: (name: string) =>
-    fetch("/api/pull", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    }).then((r) => json<{ status: string }>(r)),
   permissions: () => fetch("/api/runyx/permissions").then((r) => json<PermissionsSnapshot>(r)),
   revokeDevice: (id: string) => fetch(`/api/runyx/permissions/devices/${id}`, { method: "DELETE" }),
+  whoami: () => fetch("/api/runyx/whoami").then((r) => json<{ first_name: string }>(r)),
+  registry: () => fetch("/api/runyx/registry").then((r) => json<RegistryModel[]>(r)),
+  deleteModel: (name: string) =>
+    fetch("/api/delete", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }),
+  listProjects: () => fetch("/api/runyx/projects").then((r) => json<Project[]>(r)),
+  newProject: (name: string) =>
+    fetch("/api/runyx/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Name: name }),
+    }).then((r) => json<Project>(r)),
+
+  // Streams a server-side model pull as NDJSON progress lines. Pass
+  // `signal` from an AbortController to implement "pause" — aborting
+  // cancels the request, the server stops mid-chunk, and the partial
+  // download resumes automatically the next time pull() is called with
+  // the same model.
+  async pull(
+    target: { id: string } | { repo: string; file: string },
+    onProgress: (p: PullProgress) => void,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const res = await fetch("/api/runyx/models/pull", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(target),
+      signal,
+    });
+    if (!res.ok || !res.body) {
+      throw new Error(`pull failed: HTTP ${res.status}`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          onProgress(JSON.parse(line) as PullProgress);
+        } catch {
+          // ignore malformed line
+        }
+      }
+    }
+  },
   pairingQRCode: async (deviceName: string): Promise<{ ok: true; url: string } | { ok: false; error: string }> => {
     const res = await fetch("/api/runyx/pairing/qrcode", {
       method: "POST",

@@ -50,29 +50,18 @@ async function setPrefs(page, theme, reduceMotion) {
 async function gotoReady(page) {
   await page.goto(BASE_URL, { waitUntil: "load" });
   await killAnimations(page);
-  await page.waitForSelector(".rail", { timeout: 15000 });
+  await page.waitForSelector("nav", { timeout: 15000 });
 }
 
-async function openView(page, index) {
-  await page.locator(".rail button").nth(index).click();
-  await page.waitForTimeout(250);
+async function openTab(page, label) {
+  await page.locator(".tab", { hasText: label }).click();
+  await page.waitForTimeout(300);
   await killAnimations(page);
 }
 
-async function newConversation(page) {
-  // The "+ New conversation" button exists both in the (possibly hidden,
-  // on a narrow/phone viewport) sidebar and in the empty-state — pick
-  // whichever one is actually visible.
-  const btn = page
-    .locator("button:visible", { hasText: /New conversation/i })
-    .first();
-  await btn.click();
-  await page.waitForSelector("textarea", { timeout: 10000 });
-}
-
 async function sendAndWait(page, text, timeoutMs = 120000) {
-  await page.locator("textarea").fill(text);
-  await page.locator("button.send").click();
+  await page.locator("textarea").first().fill(text);
+  await page.locator(".send").first().click();
   // Streaming started: a cursor marker appears, then disappears once the
   // reply is persisted back as a normal message bubble.
   await page.waitForSelector(".cursor", { timeout: 15000 }).catch(() => {});
@@ -83,6 +72,11 @@ async function sendAndWait(page, text, timeoutMs = 120000) {
 async function shoot(page, file) {
   ensureDir(path.dirname(file));
   await page.screenshot({ path: file });
+}
+
+async function newChat(page) {
+  await page.locator(".quick-link", { hasText: "New chat" }).click();
+  await page.waitForTimeout(300);
 }
 
 async function runThemePass(browser, theme) {
@@ -102,8 +96,9 @@ async function runThemePass(browser, theme) {
   await killAnimations(page);
   await page.waitForTimeout(300);
 
-  // 1. Empty home / chat.
-  await shoot(page, path.join(dir, "01-home-empty.png"));
+  // 1. Home (greeting + centered composer + shortcuts, or the "pick a
+  // model" invite if nothing is installed yet).
+  await shoot(page, path.join(dir, "01-home.png"));
 
   // 2. Ctrl+K command palette.
   await page.keyboard.down("Control");
@@ -114,8 +109,8 @@ async function runThemePass(browser, theme) {
   await page.keyboard.press("Escape");
   await page.waitForTimeout(150);
 
-  // 3. A real conversation with a completed real model response.
-  await newConversation(page);
+  // 3. A real conversation with a completed real model response, sent
+  // from the home screen's centered composer.
   await sendAndWait(page, PROMPT);
   await shoot(page, path.join(dir, "03-conversation-response.png"));
 
@@ -123,37 +118,41 @@ async function runThemePass(browser, theme) {
   const pngPath = path.join(OUT_DIR, "tmp-attachment.png");
   ensureDir(OUT_DIR);
   fs.writeFileSync(pngPath, Buffer.from(TINY_PNG_B64, "base64"));
-  await page.locator("button.attach").click();
+  await page.locator('button[title="Attach a file"]').click();
   await page.setInputFiles('input[type="file"]', pngPath);
   await page.waitForSelector(".chip", { timeout: 10000 });
   await shoot(page, path.join(dir, "04-attachment.png"));
-  await page.locator("button.send").click();
+  await page.locator(".send").first().click();
   await page.waitForSelector(".cursor", { state: "detached", timeout: 120000 }).catch(() => {});
   await page.waitForTimeout(300);
 
-  // 5. Models page (installed models list).
-  await openView(page, 1);
+  // 5. Models page: Installed / Recommended / Browse all.
+  await openTab(page, "Models");
   await shoot(page, path.join(dir, "05-models.png"));
 
-  // 6. Mobile pairing page, with its QR code.
-  await openView(page, 2);
-  await page.locator(".page button").click();
+  // 6. Agent page, then mobile pairing with its QR code.
+  await openTab(page, "Agent");
+  await shoot(page, path.join(dir, "06-agent.png"));
+  await page.locator("button", { hasText: "Pair a device" }).click();
+  await page.waitForTimeout(200);
+  await page.locator(".page button", { hasText: "Generate QR code" }).click();
   await page.waitForSelector("img.qr", { timeout: 10000 }).catch(() => {});
   await page.waitForTimeout(300);
-  await shoot(page, path.join(dir, "06-pairing-qrcode.png"));
+  await shoot(page, path.join(dir, "07-pairing-qrcode.png"));
 
-  // 7. Settings & permissions center.
-  await openView(page, 3);
+  // 7. Settings (appearance).
+  await openTab(page, "Chat");
+  await page.waitForTimeout(150);
+  await page.locator(".quick-link", { hasText: "Settings" }).click();
   await page.waitForTimeout(200);
-  await shoot(page, path.join(dir, "07-settings-permissions.png"));
+  await shoot(page, path.join(dir, "08-settings.png"));
 
-  // 8. Dashboard (RAM/VRAM, loaded models) — dedicated crop of the panel.
-  await openView(page, 0);
-  await page.waitForTimeout(200);
-  const aside = page.locator("aside");
-  if (await aside.count()) {
-    await aside.first().screenshot({ path: path.join(dir, "08-dashboard.png") });
-  }
+  // 8. Sidebar collapsed, showing the device card icon-only.
+  await openTab(page, "Chat");
+  await page.waitForTimeout(150);
+  await page.locator(".collapse-btn").click();
+  await page.waitForTimeout(250);
+  await shoot(page, path.join(dir, "09-sidebar-collapsed.png"));
 
   await context.close();
 }
@@ -173,7 +172,7 @@ async function runPhonePass(browser) {
 
   await shoot(page, path.join(dir, "phone-01-home.png"));
 
-  await newConversation(page);
+  await newChat(page);
   await sendAndWait(page, PROMPT);
   await shoot(page, path.join(dir, "phone-02-chat.png"));
 
@@ -192,7 +191,7 @@ async function recordVideo(browser) {
   await setPrefs(page, "light", true);
   await page.reload({ waitUntil: "load" });
   await killAnimations(page);
-  await newConversation(page);
+  await newChat(page);
   await page.waitForTimeout(500);
   await sendAndWait(page, PROMPT);
   await page.waitForTimeout(800);
@@ -215,7 +214,6 @@ async function main() {
   }
   const browser = await chromium.launch(launchOpts);
   const errors = [];
-  browser.on("disconnected", () => {});
 
   try {
     for (const theme of ["light", "dark"]) {

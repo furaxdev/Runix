@@ -17,24 +17,30 @@ verify on real hardware.
 
 ## Base features (the "like Ollama" set)
 
-- [x] B1 Facile — `runyx run <model>` pulls+runs, tested end to end with
-      a real 0.5B model download; full GUI exists (chat/sidebar/dashboard)
-      but a model must still be pulled once via CLI first.
-- [x] B2 Rapide — thin HTTP proxy over llama-server; overhead not
+- [x] B1 Easy — `runyx run <model>` pulls+runs, tested end to end with
+      a real 0.5B model download; the web UI can also pull a model
+      directly from its Models page now (no CLI step required first).
+- [x] B2 Fast — thin HTTP proxy over llama-server; overhead not
       benchmarked yet (`runyx bench`, item 7, is M6).
 - [x] B3 Models — Hugging Face GGUF search/pull tested live
-      (`runyx pull Qwen/...` actually downloaded 468 MB); UI pull flow not
-      built yet (CLI only).
-- [x] B4 Fichiers — universal attachment conversion tested (text, PDF,
+      (`runyx pull Qwen/...` actually downloaded 468 MB); the Models page
+      now has a real UI pull flow too, backed by a 27-model curated
+      registry (`models/registry.json`, verified against the live
+      Hugging Face API in CI — see `cmd/verify-registry` and
+      docs/DECISIONS.md 2026-10-22), with descriptions, capability
+      badges, a hardware-fit assessment per model, and
+      pause/resume-capable downloads (`POST
+      /api/runyx/models/pull`, NDJSON progress).
+- [x] B4 Files — universal attachment conversion tested (text, PDF,
       DOCX, XLSX, PPTX, archives, images with OCR, audio via fake-binary
       integration test); works with any model since it's text injected
       into the prompt, not a model capability.
-- [~] B5 Commandes — the safe shell agent (item 21, M4) is implemented
+- [~] B5 Commands — the safe shell agent (item 21, M4) is implemented
       and tested with real shell commands/git, but the daemon currently
       has no interactive approval UI wired up, so every proposed command
       is refused by default through `runyx serve` (fails closed, never
       silently allowed). See docs/BLOCKED.md.
-- [x] B6 Vocal — voice pipeline API endpoints (transcribe/synthesize)
+- [x] B6 Voice — voice pipeline API endpoints (transcribe/synthesize)
       tested over real HTTP (503 degrade when whisper.cpp/Piper aren't
       installed, which is this sandbox's actual state); Android app has
       a real push-to-talk mic button and reply playback. STT/TTS
@@ -96,13 +102,18 @@ verify on real hardware.
       file picker only.
 - [x] 29. UI identity — Svelte UI built and actually served by the daemon
       (verified live: `curl localhost:11535/` returns the built page);
-      light/dark theme via CSS, Ctrl+K command palette, English-only
-      i18n (see 2026-10-22 amendment in `docs/DECISIONS.md` — previously
-      FR/EN, now English-only; the `Lang` union + per-locale dict
-      mechanism is kept for adding a locale later), discreet dashboard
-      (RAM/VRAM/loaded models) all present. Visual polish
-      (micro-animations, accessibility pass, settings panel for "reduce
-      motion") is minimal — functional, not refined.
+      collapsible sidebar (Chat/Models/Agent tabs, recents grouped by
+      day with search, a device status card), a centered-composer home
+      screen with a time-of-day greeting and shortcut prompts, light/dark
+      theme via CSS, Ctrl+K command palette, English-only i18n (see
+      2026-10-22 amendment in `docs/DECISIONS.md` — previously FR/EN,
+      now English-only; the `Lang` union + per-locale dict mechanism is
+      kept for adding a locale later), an original logo (not copied from
+      another product), and a single consistent icon set (lucide-svelte
+      on web, Compose Material icons on Android — no emoji anywhere, see
+      `scripts/check-no-emoji.sh`'s CI gate). Visual polish
+      (micro-animations, a full accessibility pass) is minimal —
+      functional, not refined.
 - [x] 31. Vision bridge — OCR tested against a real generated image;
       image-hash cache tested (call-counted, proven not to re-run OCR);
       `look_at_image` mechanism implemented and unit tested against a

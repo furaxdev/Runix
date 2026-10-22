@@ -145,3 +145,41 @@ only the interface text itself is English. `RUNYX_PROMPT.md` (the
 original French spec) is kept as the historical record of what was
 asked, amended in place at §1 and items 25/29 to note this change
 rather than rewritten.
+
+## 2026-10-22 — UI redesign: sidebar + home + model registry + icon set
+
+Reworked the web UI's layout and navigation (collapsible sidebar with a
+Chat/Models/Agent tab selector, recents grouped by day with search, a
+device status card, a centered-composer home screen with a greeting and
+shortcuts) and replaced the old "type a Hugging Face repo name" pull flow
+with a real, curated model catalog.
+
+- **Model registry** (`models/registry.json`, embedded via
+  `internal/registry`): 27 hand-picked models spanning ~0.5B-72B,
+  including vision and code-specialized models, each verified against the
+  real Hugging Face API (repo exists, file exists, real byte size) —
+  `cmd/verify-registry` does this and runs in CI
+  (`.github/workflows/ci.yml`'s `verify-registry` job) so a renamed or
+  removed upstream file fails CI instead of silently going stale. No
+  model was invented; every entry's description reflects that model's
+  actual public model card.
+- **Download pause/resume**: `POST /api/runyx/models/pull` streams NDJSON
+  progress over the request body. "Pause" is the client aborting the
+  fetch — the request context cancels, `internal/downloader` stops
+  mid-chunk, and the partial `.part` + resume-state sidecar survive on
+  disk exactly as they do for CLI `runyx pull`. "Resume" is calling the
+  same endpoint again; `Download()` already knows how to pick the saved
+  chunk state back up. No new resume mechanism was built — this reuses
+  the downloader's existing resumable-download support end to end.
+- **Icon set**: lucide-svelte (ISC) on the web UI, Jetpack Compose's
+  `material-icons-extended` (Apache-2.0) on Android — one stroke
+  style/weight each, no emoji anywhere in the product (see the
+  `scripts/check-no-emoji.sh` CI gate). Both are listed in
+  `THIRD_PARTY.md`.
+- **Logo**: an original simple mark (three offset bars suggesting
+  motion), not derived from any other product's icon or logo.
+- **"Agent" page**: split out of the old combined Settings page — shell
+  agent status, vision/voice/web-search flags, and paired-device
+  management (with a "Pair a device" entry point into the existing
+  pairing flow) now live there; Settings is appearance-only (theme,
+  reduce motion).

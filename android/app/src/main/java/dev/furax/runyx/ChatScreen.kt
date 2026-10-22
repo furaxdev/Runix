@@ -7,6 +7,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -70,36 +74,33 @@ fun ChatScreen(viewModel: RunyxViewModel, prefillText: String?) {
             Modifier.fillMaxWidth().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButtonText(
-                label = if (viewModel.isRecording) "⏹" else "🎙",
-                onClick = {
-                    if (viewModel.isRecording) {
-                        scope.launch { stopRecording(viewModel, recorder) }
-                    } else {
-                        requestMicAndRecord(context, micPermission, viewModel, recorder)
-                    }
+            IconButton(onClick = {
+                if (viewModel.isRecording) {
+                    scope.launch { stopRecording(viewModel, recorder) }
+                } else {
+                    requestMicAndRecord(context, micPermission, viewModel, recorder)
                 }
-            )
+            }) {
+                if (viewModel.isRecording) {
+                    Icon(Icons.Default.Stop, contentDescription = "Stop recording")
+                } else {
+                    Icon(Icons.Default.Mic, contentDescription = "Start voice input")
+                }
+            }
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Type a message...") }
             )
-            IconButtonText(
-                label = "➤",
-                onClick = {
-                    viewModel.send(input)
-                    input = ""
-                }
-            )
+            IconButton(onClick = {
+                viewModel.send(input)
+                input = ""
+            }) {
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send message")
+            }
         }
     }
-}
-
-@Composable
-private fun IconButtonText(label: String, onClick: () -> Unit) {
-    TextButton(onClick = onClick) { Text(label, style = MaterialTheme.typography.titleLarge) }
 }
 
 private fun requestMicAndRecord(

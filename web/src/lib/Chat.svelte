@@ -1,61 +1,35 @@
 <script lang="ts">
-  import { api, type Message } from "./api";
-  import { t, type Lang } from "./i18n";
+  import { onMount } from "svelte";
+  import { api, type Message, type RegistryModel } from "./api";
+  import Composer from "./Composer.svelte";
+  import { Volume2 } from "./icons";
 
-  export let lang: Lang;
   export let conversationId: string;
   export let model: string;
   export let messages: Message[] = [];
   export let onMessagesChanged: () => void;
+  export let installedModels: RegistryModel[] = [];
+  export let onBrowseMore: () => void;
+  // Set when this Chat is mounted right after Home created the
+  // conversation for a just-typed first message: send it immediately
+  // instead of waiting for another Composer submit.
+  export let initialText = "";
+  export let initialAttachments: { file_name: string; kind: string; text: string }[] = [];
 
-  let input = "";
   let streaming = false;
   let liveReply = "";
-  let fileInput: HTMLInputElement;
-  let pendingAttachments: { file_name: string; kind: string; text: string }[] = [];
-
-  // Voice (item 25): push-to-talk recording via MediaRecorder, and
-  // playback of synthesized replies. currentAudio is tracked so a new
-  // recording or a new playback request can interrupt whatever's
-  // currently playing — the "interruption" requirement.
-  let recording = false;
-  let mediaRecorder: MediaRecorder | null = null;
-  let recordedChunks: Blob[] = [];
   let currentAudio: HTMLAudioElement | null = null;
+
+  onMount(() => {
+    if (initialText || initialAttachments.length > 0) {
+      sendMessage(initialText, initialAttachments);
+    }
+  });
 
   function stopPlayback() {
     if (currentAudio) {
       currentAudio.pause();
       currentAudio = null;
-    }
-  }
-
-  async function toggleRecording() {
-    if (recording) {
-      mediaRecorder?.stop();
-      return;
-    }
-    stopPlayback(); // speaking interrupts any reply currently being read aloud
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      recordedChunks = [];
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = (e) => recordedChunks.push(e.data);
-      mediaRecorder.onstop = async () => {
-        recording = false;
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(recordedChunks, { type: "audio/webm" });
-        try {
-          const result = await api.transcribeAudio(blob);
-          input = (input ? input + " " : "") + result.text;
-        } catch (err) {
-          alert(`Transcription: ${err}`);
-        }
-      };
-      mediaRecorder.start();
-      recording = true;
-    } catch (err) {
-      alert(`Microphone: ${err}`);
     }
   }
 
@@ -71,17 +45,19 @@
     }
   }
 
-  async function send() {
-    const text = input.trim();
-    if (!text && pendingAttachments.length === 0) return;
-    input = "";
+  function onSend(e: CustomEvent<{ text: string; attachments: { file_name: string; kind: string; text: string }[] }>) {
+    sendMessage(e.detail.text, e.detail.attachments);
+  }
+
+  async function sendMessage(text: string, attachments: { file_name: string; kind: string; text: string }[]) {
+    if (!text && attachments.length === 0) return;
 
     let fullContent = text;
-    for (const a of pendingAttachments) {
+    for (const a of attachments) {
       fullContent += `\n\n[Attachment: ${a.file_name}]\n${a.text}`;
     }
-    pendingAttachments = [];
 
+    stopPlayback();
     await api.addMessage(conversationId, "user", fullContent);
     onMessagesChanged();
 
@@ -97,33 +73,12 @@
       });
       await api.addMessage(conversationId, "assistant", liveReply);
     } catch (e) {
-      liveReply += `\n\n[${e}]`;
+      liveReply += `\n\n[Error: ${e}]`;
       await api.addMessage(conversationId, "assistant", liveReply);
     } finally {
       streaming = false;
       liveReply = "";
       onMessagesChanged();
-    }
-  }
-
-  async function onFilePicked(e: Event) {
-    const files = (e.target as HTMLInputElement).files;
-    if (!files) return;
-    for (const f of Array.from(files)) {
-      try {
-        const res = await api.uploadAttachment(f);
-        pendingAttachments = [...pendingAttachments, res];
-      } catch (err) {
-        alert(`${f.name}: ${err}`);
-      }
-    }
-    fileInput.value = "";
-  }
-
-  function onKeydown(e: KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      send();
     }
   }
 </script>
@@ -135,50 +90,22 @@
         <div class="bubble">
           {m.Content}
           {#if m.Role === "assistant"}
-            <button class="listen" title={t(lang, "listenReply")} on:click={() => speak(m.Content)}>🔊</button>
+            <button class="listen" title="Listen to reply" aria-label="Listen to reply" on:click={() => speak(m.Content)}>
+              <Volume2 size={14} aria-hidden="true" />
+            </button>
           {/if}
         </div>
       </div>
     {/each}
     {#if streaming}
       <div class="msg assistant">
-        <div class="bubble">{liveReply}<span class="cursor">▌</span></div>
+        <div class="bubble">{liveReply}<span class="cursor">|</span></div>
       </div>
     {/if}
   </div>
 
-  {#if pendingAttachments.length > 0}
-    <div class="chips">
-      {#each pendingAttachments as a}
-        <span class="chip" title={a.text.slice(0, 300)}>{a.file_name} ({a.kind})</span>
-      {/each}
-    </div>
-  {/if}
-
-  <div class="composer">
-    <button class="attach" title={t(lang, "attachFile")} on:click={() => fileInput.click()}>📎</button>
-    <button
-      class="mic"
-      class:active={recording}
-      title={t(lang, recording ? "recording" : "recordVoice")}
-      on:click={toggleRecording}
-    >
-      🎙
-    </button>
-    <input
-      type="file"
-      bind:this={fileInput}
-      on:change={onFilePicked}
-      style="display: none"
-      multiple
-    />
-    <textarea
-      bind:value={input}
-      placeholder={t(lang, "placeholder")}
-      on:keydown={onKeydown}
-      rows="1"
-    />
-    <button class="send" on:click={send} disabled={streaming}>{t(lang, "send")}</button>
+  <div class="composer-dock">
+    <Composer {installedModels} bind:model {onBrowseMore} disabled={streaming} on:send={onSend} />
   </div>
 </div>
 
@@ -225,70 +152,6 @@
   .cursor {
     opacity: 0.5;
   }
-  .chips {
-    padding: 0 1.5rem;
-    display: flex;
-    gap: 0.5rem;
-    max-width: 720px;
-    margin: 0 auto;
-    width: 100%;
-  }
-  .chip {
-    font-size: 0.78rem;
-    background: var(--bg-sunken);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 0.25rem 0.7rem;
-    color: var(--text-muted);
-  }
-  .composer {
-    display: flex;
-    align-items: flex-end;
-    gap: 0.5rem;
-    max-width: 720px;
-    width: calc(100% - 3rem);
-    margin: 0 auto 1.5rem;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 0.6rem 0.75rem;
-    box-shadow: var(--shadow);
-  }
-  textarea {
-    flex: 1;
-    /* A <textarea>'s intrinsic min-content width (from its default
-       `cols`) otherwise refuses to shrink below it, overflowing the
-       composer and rendering its placeholder text behind the send
-       button on narrow (phone-width) viewports. */
-    min-width: 0;
-    border: none;
-    background: transparent;
-    resize: none;
-    font-family: inherit;
-    font-size: 0.95rem;
-    color: var(--text);
-    outline: none;
-    max-height: 160px;
-    padding: 0.4rem 0.2rem;
-    /* rows="1" fixes a single line of height, but a <textarea> wraps
-       long text (including its placeholder) onto multiple lines by
-       default; at phone widths that wrapped second line painted
-       outside the pill-shaped composer instead of being clipped. */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .attach, .send, .mic {
-    border: none;
-    background: transparent;
-    border-radius: var(--radius-md);
-    padding: 0.5rem 0.7rem;
-    color: var(--text-muted);
-  }
-  .mic.active {
-    color: var(--accent-contrast);
-    background: var(--accent);
-  }
   .listen {
     border: none;
     background: transparent;
@@ -296,15 +159,12 @@
     opacity: 0.6;
     margin-left: 0.4rem;
     cursor: pointer;
+    vertical-align: middle;
   }
   .listen:hover {
     opacity: 1;
   }
-  .send {
-    background: var(--accent);
-    color: var(--accent-contrast);
-  }
-  .send:disabled {
-    opacity: 0.5;
+  .composer-dock {
+    padding: 0 1.5rem 1.5rem;
   }
 </style>

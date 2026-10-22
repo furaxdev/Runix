@@ -64,6 +64,9 @@ func (d *Daemon) NewHTTPServer() *http.Server {
 	m6 := &api.M6Extras{Plugins: d.Plugins, Scheduler: d.Scheduler, Server: apiServer}
 	m6.RegisterM6(mux)
 
+	regExtras := &api.RegistryExtras{Server: apiServer}
+	regExtras.RegisterRegistry(mux)
+
 	registerStaticUI(mux)
 
 	return &http.Server{

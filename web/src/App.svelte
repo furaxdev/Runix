@@ -1,18 +1,19 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import "./lib/theme.css";
-  import { api, type Conversation, type Message, type DashboardStats } from "./lib/api";
+  import { api, type Conversation, type Message, type RegistryModel } from "./lib/api";
   import { detectLang, t, type Lang } from "./lib/i18n";
   import Sidebar from "./lib/Sidebar.svelte";
-  import Dashboard from "./lib/Dashboard.svelte";
+  import Home from "./lib/Home.svelte";
   import Chat from "./lib/Chat.svelte";
   import CommandPalette from "./lib/CommandPalette.svelte";
   import Models from "./lib/Models.svelte";
   import Pairing from "./lib/Pairing.svelte";
   import Settings from "./lib/Settings.svelte";
+  import Agent from "./lib/Agent.svelte";
 
-  type View = "chat" | "models" | "pairing" | "settings";
-  let view: View = "chat";
+  type View = "home" | "chat" | "models" | "pairing" | "settings" | "agent";
+  let view: View = "home";
 
   let lang: Lang = detectLang();
   let theme: "system" | "light" | "dark" = (safeGet("runyx.theme") as any) ?? "system";
@@ -21,8 +22,7 @@
   let conversations: Conversation[] = [];
   let activeId: string | null = null;
   let messages: Message[] = [];
-  let stats: DashboardStats | null = null;
-  let models: string[] = [];
+  let registryModels: RegistryModel[] = [];
   let currentModel = "";
   let paletteOpen = false;
 
@@ -47,9 +47,6 @@
   }
 
   async function refreshConversations() {
-    // The API returns a bare JSON `null` (not `[]`) when there are no
-    // conversations yet, since it's backed by a nil Go slice — guard
-    // against that here rather than only on a request *error*.
     conversations = (await api.listConversations().catch(() => [])) ?? [];
   }
 
@@ -58,21 +55,42 @@
     messages = (await api.messages(activeId).catch(() => [])) ?? [];
   }
 
-  async function refreshDashboard() {
-    stats = await api.dashboard().catch(() => null);
+  async function refreshRegistry() {
+    registryModels = await api.registry().catch(() => []);
   }
+
+  $: installedModels = registryModels.filter((m) => m.installed);
 
   async function selectConversation(id: string) {
     activeId = id;
+    view = "chat";
+    pendingFirstText = "";
+    pendingFirstAttachments = [];
     const c = conversations.find((c) => c.ID === id);
     if (c) currentModel = c.Model;
     await refreshMessages();
   }
 
   async function newConversation() {
-    const c = await api.newConversation("", currentModel || models[0] || "");
+    const c = await api.newConversation("", currentModel || installedModels[0]?.pull_spec || "");
     await refreshConversations();
     await selectConversation(c.ID);
+  }
+
+  // Home's composer has no conversation yet: create one, then hand the
+  // typed text to the freshly-mounted Chat (via initialText), which
+  // sends it with its own normal streaming logic.
+  let pendingFirstText = "";
+  let pendingFirstAttachments: { file_name: string; kind: string; text: string }[] = [];
+
+  async function onHomeSend(e: CustomEvent<{ text: string; attachments: { file_name: string; kind: string; text: string }[] }>) {
+    const c = await api.newConversation("", currentModel || installedModels[0]?.pull_spec || "");
+    await refreshConversations();
+    pendingFirstText = e.detail.text;
+    pendingFirstAttachments = e.detail.attachments;
+    activeId = c.ID;
+    view = "chat";
+    await refreshMessages();
   }
 
   async function togglePin(id: string, pinned: boolean) {
@@ -80,18 +98,17 @@
     await refreshConversations();
   }
 
+  function onTab(v: "home" | "models" | "agent") {
+    view = v;
+    if (v === "home" && activeId) view = "chat";
+  }
+
   onMount(async () => {
     applyTheme();
     await refreshConversations();
-    await refreshDashboard();
-    try {
-      const m = await api.models();
-      models = m.data.map((d) => d.id);
-      if (!currentModel) currentModel = models[0] ?? "";
-    } catch {
-      /* daemon not reachable yet; dashboard/model list stay empty */
-    }
-    setInterval(refreshDashboard, 5000);
+    await refreshRegistry();
+    if (!currentModel) currentModel = installedModels[0]?.pull_spec ?? "";
+    setInterval(refreshRegistry, 10000);
 
     window.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
@@ -122,41 +139,52 @@
 </script>
 
 <div class="app">
-  <nav class="rail">
-    <button class:active={view === "chat"} on:click={() => (view = "chat")} title={t(lang, "navChat")}>💬</button>
-    <button class:active={view === "models"} on:click={() => (view = "models")} title={t(lang, "navModels")}>📦</button>
-    <button class:active={view === "pairing"} on:click={() => (view = "pairing")} title={t(lang, "navPairing")}>📱</button>
-    <button class:active={view === "settings"} on:click={() => (view = "settings")} title={t(lang, "navSettings")}>⚙️</button>
-  </nav>
+  <Sidebar
+    {view}
+    {onTab}
+    onOpenSettings={() => (view = "settings")}
+    {conversations}
+    {activeId}
+    onSelect={selectConversation}
+    onNew={() => {
+      activeId = null;
+      view = "home";
+    }}
+    onTogglePin={togglePin}
+    onOpenDownloads={() => (view = "models")}
+  />
 
-  {#if view === "chat"}
-    <Sidebar
-      {lang}
-      {conversations}
-      {activeId}
-      onSelect={selectConversation}
-      onNew={newConversation}
-      onTogglePin={togglePin}
-    />
-
-    {#if activeId}
-      <Chat {lang} conversationId={activeId} model={currentModel} {messages} onMessagesChanged={refreshMessages} />
-    {:else}
-      <div class="empty-state">
-        <h1>Runyx</h1>
-        <p>{t(lang, "noConversations")}</p>
-        <button on:click={newConversation}>+ {t(lang, "newChat")}</button>
-      </div>
+  <main>
+    {#if view === "home"}
+      <Home {installedModels} bind:model={currentModel} onBrowseMore={() => (view = "models")} on:send={onHomeSend} />
+    {:else if view === "chat" && activeId}
+      {#key activeId}
+        <Chat
+          conversationId={activeId}
+          model={currentModel}
+          {messages}
+          onMessagesChanged={refreshMessages}
+          {installedModels}
+          onBrowseMore={() => (view = "models")}
+          initialText={pendingFirstText}
+          initialAttachments={pendingFirstAttachments}
+        />
+      {/key}
+    {:else if view === "models"}
+      <Models
+        onUse={(spec) => {
+          currentModel = spec;
+          view = activeId ? "chat" : "home";
+        }}
+      />
+    {:else if view === "pairing"}
+      <Pairing {lang} />
+    {:else if view === "settings"}
+      <Settings {theme} {reduceMotion} onSetTheme={setTheme} onToggleReduceMotion={setReduceMotion} />
+    {:else if view === "agent"}
+      <Agent onPairDevice={() => (view = "pairing")} />
     {/if}
-
-    <Dashboard {lang} {stats} />
-  {:else if view === "models"}
-    <Models {lang} />
-  {:else if view === "pairing"}
-    <Pairing {lang} />
-  {:else if view === "settings"}
-    <Settings {lang} {theme} {reduceMotion} onSetTheme={setTheme} onToggleReduceMotion={setReduceMotion} />
-  {/if}
+  </main>
 </div>
 
 <CommandPalette {lang} bind:open={paletteOpen} {commands} />
@@ -168,50 +196,9 @@
     width: 100vw;
     overflow: hidden;
   }
-  .empty-state {
+  main {
     flex: 1;
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    color: var(--text-muted);
-    text-align: center;
-  }
-  .empty-state h1 {
-    font-size: 2.5rem;
-    color: var(--text);
-    margin: 0;
-  }
-  .empty-state button {
-    border: 1px solid var(--border);
-    background: var(--bg-elevated);
-    border-radius: var(--radius-md);
-    padding: 0.6rem 1.2rem;
-    color: var(--text);
-  }
-  .rail {
-    width: 52px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 1rem 0;
-    background: var(--bg-sunken);
-    border-right: 1px solid var(--border);
-  }
-  .rail button {
-    width: 36px;
-    height: 36px;
-    border: none;
-    background: transparent;
-    border-radius: var(--radius-md);
-    font-size: 1.1rem;
-    color: var(--text-muted);
-  }
-  .rail button.active {
-    background: var(--bg-elevated);
-    color: var(--text);
+    min-width: 0;
   }
 </style>
