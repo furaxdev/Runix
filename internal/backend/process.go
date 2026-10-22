@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -144,6 +145,14 @@ func (m *Manager) Start(ctx context.Context, mdl modelstore.Model, tuning models
 	}
 
 	cmd := exec.CommandContext(context.Background(), m.BinaryPath, args...) // outlives request ctx
+	// Captured so a startup failure (crash, missing shared library, bad
+	// flag) is diagnosable from the error alone — without this, Stdout/
+	// Stderr are nil and Go silently sends them to /dev/null, so
+	// "did not become healthy" looked identical whether llama-server was
+	// still loading or had already died.
+	output := newRingBuffer(8 * 1024)
+	cmd.Stdout = output
+	cmd.Stderr = output
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start llama-server: %w", err)
 	}
@@ -160,7 +169,11 @@ func (m *Manager) Start(ctx context.Context, mdl modelstore.Model, tuning models
 	if err := waitHealthy(ctx, inst.BaseURL); err != nil {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait() // reap; Kill alone leaves a zombie until the daemon exits
-		return nil, fmt.Errorf("llama-server did not become healthy: %w", err)
+		out := strings.TrimSpace(output.String())
+		if out == "" {
+			out = "(no output)"
+		}
+		return nil, fmt.Errorf("llama-server did not become healthy: %w\nllama-server output:\n%s", err, out)
 	}
 
 	m.mu.Lock()
@@ -266,6 +279,37 @@ func freePort(from int) (int, error) {
 		}
 	}
 	return 0, fmt.Errorf("no free port found starting at %d", from)
+}
+
+// ringBuffer is an io.Writer that keeps only the last maxBytes written to
+// it, so a long-running subprocess's output can be captured for
+// diagnostics without the buffer growing unbounded. Safe for concurrent
+// writes (exec.Cmd writes to Stdout/Stderr from its own goroutines) and
+// for String() to be called after the process has been killed.
+type ringBuffer struct {
+	mu      sync.Mutex
+	buf     []byte
+	maxSize int
+}
+
+func newRingBuffer(maxSize int) *ringBuffer {
+	return &ringBuffer{maxSize: maxSize}
+}
+
+func (r *ringBuffer) Write(p []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.buf = append(r.buf, p...)
+	if len(r.buf) > r.maxSize {
+		r.buf = r.buf[len(r.buf)-r.maxSize:]
+	}
+	return len(p), nil
+}
+
+func (r *ringBuffer) String() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return string(r.buf)
 }
 
 func waitHealthy(ctx context.Context, baseURL string) error {

@@ -1,9 +1,27 @@
 package backend
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
+
+// TestRingBufferKeepsOnlyTheTail guards the buffer that captures a
+// started llama-server's stdout/stderr for diagnosing startup failures:
+// it must cap at maxSize and keep the most recent bytes, not the first
+// ones (the useful error is usually near the end of the output).
+func TestRingBufferKeepsOnlyTheTail(t *testing.T) {
+	rb := newRingBuffer(10)
+	rb.Write([]byte("0123456789"))
+	rb.Write([]byte("abcde"))
+	got := rb.String()
+	if len(got) != 10 {
+		t.Fatalf("len = %d, want 10", len(got))
+	}
+	if !strings.HasSuffix("0123456789abcde", got) {
+		t.Errorf("String() = %q, want the tail of the written bytes", got)
+	}
+}
 
 func TestLRUVictimPicksLeastRecentlyUsed(t *testing.T) {
 	now := time.Now()
