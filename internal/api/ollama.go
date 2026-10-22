@@ -107,7 +107,7 @@ func (s *Server) handleGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 	inst, _, err := s.ensureInstance(r.Context(), req.Model)
 	if err != nil {
-		writeError(w, http.StatusNotFound, err)
+		writeEnsureInstanceError(w, err)
 		return
 	}
 
@@ -156,7 +156,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 	inst, _, err := s.ensureInstance(r.Context(), req.Model)
 	if err != nil {
-		writeError(w, http.StatusNotFound, err)
+		writeEnsureInstanceError(w, err)
 		return
 	}
 

@@ -97,3 +97,26 @@ type notFoundError string
 func (e notFoundError) Error() string { return "model not found: " + string(e) }
 
 func errModelNotFound(name string) error { return notFoundError(name) }
+
+// isModelNotFound reports whether err is the "no such model in the
+// store" case specifically, as opposed to some other ensureInstance
+// failure (e.g. the backend process failing to start) — callers use this
+// to pick an HTTP status that doesn't claim "not found" for an error that
+// has nothing to do with the model name.
+func isModelNotFound(err error) bool {
+	_, ok := err.(notFoundError)
+	return ok
+}
+
+// writeEnsureInstanceError reports an ensureInstance failure with 404
+// only when the model name itself wasn't found; any other failure (most
+// commonly the backend process failing to start) is a server-side
+// problem and must not be reported as "not found" — that misreports the
+// real cause to both callers and anyone reading the error in the UI.
+func writeEnsureInstanceError(w http.ResponseWriter, err error) {
+	status := http.StatusInternalServerError
+	if isModelNotFound(err) {
+		status = http.StatusNotFound
+	}
+	writeError(w, status, err)
+}

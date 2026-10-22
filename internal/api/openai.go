@@ -52,7 +52,7 @@ func (s *Server) handleOpenAIProxy(upstreamPath string) http.HandlerFunc {
 
 		inst, _, err := s.ensureInstance(r.Context(), peek.Model)
 		if err != nil {
-			writeError(w, http.StatusNotFound, err)
+			writeEnsureInstanceError(w, err)
 			return
 		}
 

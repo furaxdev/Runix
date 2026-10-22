@@ -72,7 +72,7 @@ func (m *M6Extras) handleBench(w http.ResponseWriter, r *http.Request) {
 	}
 	inst, _, err := m.Server.ensureInstance(r.Context(), req.Model)
 	if err != nil {
-		writeError(w, http.StatusNotFound, err)
+		writeEnsureInstanceError(w, err)
 		return
 	}
 	prompt := req.Prompt
@@ -104,7 +104,7 @@ func (m *M6Extras) handleArena(w http.ResponseWriter, r *http.Request) {
 	for _, modelName := range req.Models {
 		inst, _, err := m.Server.ensureInstance(r.Context(), modelName)
 		if err != nil {
-			writeError(w, http.StatusNotFound, err)
+			writeEnsureInstanceError(w, err)
 			return
 		}
 		targets = append(targets, bench.Target{BaseURL: inst.BaseURL, Model: modelName})

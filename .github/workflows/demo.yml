@@ -72,18 +72,32 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.RUNYX_HOME }}/data/models
-          key: runyx-demo-model-qwen2.5-0.5b-v1
+          # v2: force a fresh pull once, to rule out a stale models.json
+          # (or a stale tuning cache) surviving from before a fix landed
+          # — the "skip if already in `runyx list`" step below means a
+          # cache hit otherwise persists whatever was first pulled here
+          # forever, unaffected by later code changes.
+          key: runyx-demo-model-qwen2.5-0.5b-v2
 
+      # Every step below pipes to `tee`, and the default `bash -e` shell
+      # only checks the exit status of the last command in a pipeline —
+      # without `pipefail`, a real failure in `runyx` is silently
+      # swallowed by tee's own success, and the step goes green with a
+      # misleading empty or truncated terminal capture.
       - name: Terminal demo — doctor
         run: |
+          set -o pipefail
           mkdir -p demo-output/terminal
           ./runyx doctor | tee demo-output/terminal/01-doctor.txt
 
       - name: Terminal demo — recommend
-        run: ./runyx recommend | tee demo-output/terminal/02-recommend.txt
+        run: |
+          set -o pipefail
+          ./runyx recommend | tee demo-output/terminal/02-recommend.txt
 
       - name: Terminal demo — pull (skips if already cached)
         run: |
+          set -o pipefail
           if ./runyx list | grep -qF "$MODEL_SPEC"; then
             echo "$MODEL_SPEC already pulled (cache hit)" | tee demo-output/terminal/03-pull.txt
           else
@@ -92,11 +106,14 @@ jobs:
 
       - name: Terminal demo — run (real model, real reply)
         run: |
+          set -o pipefail
           { printf 'Explain in one sentence what you are.\n/exit\n' | ./runyx run "$MODEL_SPEC"; } \
             | tee demo-output/terminal/04-run.txt
 
       - name: Terminal demo — bench
-        run: ./runyx bench "$MODEL_SPEC" | tee demo-output/terminal/05-bench.txt
+        run: |
+          set -o pipefail
+          ./runyx bench "$MODEL_SPEC" | tee demo-output/terminal/05-bench.txt
 
       # The attachment screenshot uploads a real image; without tesseract
       # installed, Runyx has no way to analyze it (no vision model is
