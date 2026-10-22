@@ -51,27 +51,41 @@ func (e *RegistryExtras) handleRegistry(w http.ResponseWriter, r *http.Request) 
 
 	out := make([]RegistryEntry, 0, len(reg.Models))
 	for _, m := range reg.Models {
+		installedName, isInstalled := resolveInstalledName(installed, m.Repo)
+		pullSpec := m.PullSpec()
+		if isInstalled {
+			// Use the actual name this model was registered under —
+			// which, for anything pulled via the CLI with no explicit
+			// :file (the common case), is just the bare repo, not
+			// repo:file. Sending the wrong identifier to
+			// /v1/chat/completions 404s: the store has no entry under
+			// the synthesized name.
+			pullSpec = installedName
+		}
 		out = append(out, RegistryEntry{
 			Model:     m,
-			Installed: isRepoInstalled(installed, m.Repo),
+			Installed: isInstalled,
 			Fit:       hwdetect.FitFor(e.Server.HW, m.SizeBytes),
-			PullSpec:  m.PullSpec(),
+			PullSpec:  pullSpec,
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
 
-// isRepoInstalled reports whether any installed model came from repo:
-// ImportLocal stores the full pull spec ("owner/repo" or
+// resolveInstalledName reports whether any installed model came from
+// repo, and if so, the exact Name it was registered under: ImportLocal
+// stores the pull spec the user actually typed ("owner/repo" or
 // "owner/repo:file.gguf") as the model's Name, so any name starting
-// with repo means some quantization of it is already installed.
-func isRepoInstalled(installed []modelstore.Model, repo string) bool {
+// with repo means some quantization of it is already installed — but
+// the UI must address it by that stored name, not by re-deriving a
+// possibly-different repo:file.
+func resolveInstalledName(installed []modelstore.Model, repo string) (name string, ok bool) {
 	for _, m := range installed {
 		if m.Name == repo || strings.HasPrefix(m.Name, repo+":") {
-			return true
+			return m.Name, true
 		}
 	}
-	return false
+	return "", false
 }
 
 func (e *RegistryExtras) handleWhoami(w http.ResponseWriter, r *http.Request) {
