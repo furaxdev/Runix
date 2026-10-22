@@ -4,7 +4,9 @@
 package backend
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -19,9 +21,24 @@ import (
 	"github.com/furaxdev/runyx/internal/hwdetect"
 )
 
-// ReleasesAPI is the GitHub releases endpoint for upstream llama.cpp.
-// Overridable in tests.
+// ReleasesAPI is the GitHub releases endpoint for upstream llama.cpp's
+// latest release. Overridable in tests.
 var ReleasesAPI = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
+
+// releaseByTagAPI returns the GitHub API URL for one specific release
+// tag. A separate var (rather than derived from ReleasesAPI) so tests can
+// point it at a different test server independently of ReleasesAPI.
+var releaseByTagAPI = func(tag string) string {
+	return "https://api.github.com/repos/ggml-org/llama.cpp/releases/tags/" + tag
+}
+
+// nightlyTagAssetName is the asset llama.cpp's milestone releases (e.g.
+// "v0.7.0") carry instead of prebuilt binaries: a one-line text file
+// naming the continuous-build release tag (e.g. "b11669") that actually
+// has the per-platform archives attached. "latest" resolves to whichever
+// milestone tag is newest, which is frequently binary-less — this asset
+// is upstream's own pointer to where the binaries really are.
+const nightlyTagAssetName = "nightly-tag.txt"
 
 // ghAsset mirrors the subset of GitHub's release-asset JSON we need.
 type ghAsset struct {
@@ -58,8 +75,9 @@ func serverBinaryName() string {
 // PickAsset selects the best release asset name fragment for the given
 // hardware, matching upstream llama.cpp's own release-asset naming
 // convention (documented in its release notes), e.g.
-// "llama-<tag>-bin-ubuntu-x64.zip", "llama-<tag>-bin-win-cuda-x64.zip",
-// "llama-<tag>-bin-macos-arm64.zip".
+// "llama-<tag>-bin-ubuntu-x64.tar.gz", "llama-<tag>-bin-win-cuda-x64.zip",
+// "llama-<tag>-bin-macos-arm64.tar.gz". Linux/macOS builds ship as
+// .tar.gz, Windows builds as .zip.
 func PickAsset(info hwdetect.Info, assets []ghAsset) (ghAsset, error) {
 	osTag := map[string]string{"linux": "ubuntu", "windows": "win", "darwin": "macos"}[info.OS]
 	archTag := map[string]string{"amd64": "x64", "arm64": "arm64"}[info.Arch]
@@ -82,7 +100,14 @@ func PickAsset(info hwdetect.Info, assets []ghAsset) (ghAsset, error) {
 	for _, variant := range variantPriority {
 		for _, a := range assets {
 			name := strings.ToLower(a.Name)
-			if !strings.HasSuffix(name, ".zip") {
+			if !strings.HasSuffix(name, ".zip") && !strings.HasSuffix(name, ".tar.gz") {
+				continue
+			}
+			// "cudart-llama-...-cuda-...-x64.tar.gz" ships only the CUDA
+			// runtime libraries alongside the real "llama-...-cuda-..."
+			// build — matching it instead would silently fetch an
+			// archive with no llama-server binary in it at all.
+			if !strings.HasPrefix(name, "llama-") {
 				continue
 			}
 			if !strings.Contains(name, osTag) || !strings.Contains(name, archTag) {
@@ -140,17 +165,17 @@ func (f *Fetcher) Ensure(ctx context.Context, info hwdetect.Info, onProgress dow
 		return binPath, nil // already cached
 	}
 
-	zipPath := filepath.Join(f.Dir, asset.Name)
-	if err := downloader.Download(ctx, f.Client, asset.BrowserDownloadURL, zipPath, downloader.Options{
+	archivePath := filepath.Join(f.Dir, asset.Name)
+	if err := downloader.Download(ctx, f.Client, asset.BrowserDownloadURL, archivePath, downloader.Options{
 		Concurrency:  4,
 		OnProgress:   onProgress,
 		MinFreeBytes: asset.Size * 2,
 	}); err != nil {
 		return "", fmt.Errorf("download %s: %w", asset.Name, err)
 	}
-	defer os.Remove(zipPath)
+	defer os.Remove(archivePath)
 
-	if err := extractServerBinary(zipPath, destDir); err != nil {
+	if err := extractServerBinary(archivePath, destDir); err != nil {
 		return "", fmt.Errorf("extract %s: %w", asset.Name, err)
 	}
 	if runtime.GOOS != "windows" {
@@ -188,8 +213,65 @@ func (f *Fetcher) anyCachedBinary(info hwdetect.Info) (string, bool) {
 	return best, best != ""
 }
 
+// latestRelease resolves the release that actually has prebuilt binary
+// assets. llama.cpp's GitHub "latest" release is often a source-only
+// milestone tag carrying just a nightlyTagAssetName pointer; when that's
+// the case, follow it to the continuous-build release underneath.
 func (f *Fetcher) latestRelease(ctx context.Context) (ghRelease, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ReleasesAPI, nil)
+	rel, err := f.fetchRelease(ctx, ReleasesAPI)
+	if err != nil {
+		return ghRelease{}, err
+	}
+	nightlyURL, ok := nightlyTagAssetURL(rel.Assets)
+	if !ok {
+		return rel, nil
+	}
+	tag, err := f.fetchNightlyTag(ctx, nightlyURL)
+	if err != nil {
+		return ghRelease{}, fmt.Errorf("resolve nightly build tag: %w", err)
+	}
+	return f.fetchRelease(ctx, releaseByTagAPI(tag))
+}
+
+func nightlyTagAssetURL(assets []ghAsset) (string, bool) {
+	for _, a := range assets {
+		if a.Name == nightlyTagAssetName {
+			return a.BrowserDownloadURL, true
+		}
+	}
+	return "", false
+}
+
+func (f *Fetcher) fetchNightlyTag(ctx context.Context, url string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	client := f.Client
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("status %d", resp.StatusCode)
+	}
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	tag := strings.TrimSpace(string(b))
+	if tag == "" {
+		return "", fmt.Errorf("%s was empty", nightlyTagAssetName)
+	}
+	return tag, nil
+}
+
+func (f *Fetcher) fetchRelease(ctx context.Context, url string) (ghRelease, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return ghRelease{}, err
 	}
@@ -212,31 +294,52 @@ func (f *Fetcher) latestRelease(ctx context.Context) (ghRelease, error) {
 	return rel, nil
 }
 
-// extractServerBinary unzips just the llama-server (and any sibling .dll
-// /.so it needs) from archive into destDir.
+// extractServerBinary extracts just the llama-server binary (and any
+// sibling .dll/.so/.dylib it needs) from archive into destDir. archive
+// may be a .zip (Windows builds) or a .tar.gz (Linux/macOS builds).
 func extractServerBinary(archive, destDir string) error {
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return err
+	}
+	if strings.HasSuffix(strings.ToLower(archive), ".tar.gz") {
+		return extractServerBinaryFromTarGz(archive, destDir)
+	}
+	return extractServerBinaryFromZip(archive, destDir)
+}
+
+func wantedArchiveMembers() (wanted string, isWantedLib func(base string) bool) {
+	wanted = serverBinaryName()
+	isWantedLib = func(base string) bool {
+		return strings.HasSuffix(base, ".dll") || strings.HasSuffix(base, ".so") || strings.HasSuffix(base, ".dylib")
+	}
+	return
+}
+
+func extractServerBinaryFromZip(archive, destDir string) error {
 	r, err := zip.OpenReader(archive)
 	if err != nil {
 		return err
 	}
 	defer r.Close()
 
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return err
-	}
-	wanted := serverBinaryName()
+	wanted, isWantedLib := wantedArchiveMembers()
 	found := false
 	for _, zf := range r.File {
 		base := filepath.Base(zf.Name)
 		isServer := base == wanted
-		isLib := strings.HasSuffix(base, ".dll") || strings.HasSuffix(base, ".so") || strings.HasSuffix(base, ".dylib")
-		if !isServer && !isLib {
+		if !isServer && !isWantedLib(base) {
 			continue
 		}
 		if isServer {
 			found = true
 		}
-		if err := extractOne(zf, filepath.Join(destDir, base)); err != nil {
+		rc, err := zf.Open()
+		if err != nil {
+			return err
+		}
+		err = writeExtractedFile(filepath.Join(destDir, base), rc)
+		rc.Close()
+		if err != nil {
 			return err
 		}
 	}
@@ -246,17 +349,56 @@ func extractServerBinary(archive, destDir string) error {
 	return nil
 }
 
-func extractOne(zf *zip.File, dest string) error {
-	rc, err := zf.Open()
+func extractServerBinaryFromTarGz(archive, destDir string) error {
+	f, err := os.Open(archive)
 	if err != nil {
 		return err
 	}
-	defer rc.Close()
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
+
+	wanted, isWantedLib := wantedArchiveMembers()
+	found := false
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		base := filepath.Base(hdr.Name)
+		isServer := base == wanted
+		if !isServer && !isWantedLib(base) {
+			continue
+		}
+		if isServer {
+			found = true
+		}
+		if err := writeExtractedFile(filepath.Join(destDir, base), tr); err != nil {
+			return err
+		}
+	}
+	if !found {
+		return fmt.Errorf("archive %s did not contain %s", archive, wanted)
+	}
+	return nil
+}
+
+func writeExtractedFile(dest string, src io.Reader) error {
 	out, err := os.Create(dest)
 	if err != nil {
 		return err
 	}
 	defer out.Close()
-	_, err = io.Copy(out, rc)
+	_, err = io.Copy(out, src)
 	return err
 }
