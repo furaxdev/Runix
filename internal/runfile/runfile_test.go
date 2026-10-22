@@ -11,8 +11,8 @@ func TestLoadSaveRoundTrip(t *testing.T) {
 	path := filepath.Join(dir, "test.runfile.yaml")
 	rf := Runfile{
 		Model:        "qwen2.5:0.5b",
-		Name:         "Assistant concis",
-		SystemPrompt: "Réponds en une phrase.",
+		Name:         "Concise assistant",
+		SystemPrompt: "Answer in one sentence.",
 		Parameters:   map[string]any{"temperature": 0.2},
 	}
 	if err := Save(path, rf); err != nil {

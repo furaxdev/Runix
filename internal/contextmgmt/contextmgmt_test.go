@@ -49,7 +49,7 @@ func TestCompressKeepsRecentAndSummarizesOlder(t *testing.T) {
 	var summarizedCount int
 	summarize := func(ctx context.Context, old []Message) (string, error) {
 		summarizedCount = len(old)
-		return "résumé des 4 premiers messages", nil
+		return "summary of the first 4 messages", nil
 	}
 
 	compressed, err := Compress(context.Background(), msgs, 1, summarize)
@@ -62,7 +62,7 @@ func TestCompressKeepsRecentAndSummarizesOlder(t *testing.T) {
 	if len(compressed) != 2 {
 		t.Fatalf("compressed = %d messages, want 2 (summary + 1 kept)", len(compressed))
 	}
-	if compressed[0].Role != "system" || !strings.Contains(compressed[0].Content, "résumé") {
+	if compressed[0].Role != "system" || !strings.Contains(compressed[0].Content, "summary") {
 		t.Errorf("compressed[0] = %+v", compressed[0])
 	}
 	if compressed[1].Content != "msg5 (recent)" {

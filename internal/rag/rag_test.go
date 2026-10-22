@@ -128,9 +128,9 @@ func TestReindexReplacesOldChunks(t *testing.T) {
 	embedder := &Embedder{BaseURL: srv.URL, Model: "test-embed"}
 	indexer := &Indexer{Store: hist, Embedder: embedder}
 
-	os.WriteFile(f, []byte("version un du document"), 0o644)
+	os.WriteFile(f, []byte("document version one"), 0o644)
 	indexer.IndexFile(context.Background(), "p", f)
-	os.WriteFile(f, []byte("version deux, complètement différente"), 0o644)
+	os.WriteFile(f, []byte("version two, completely different"), 0o644)
 	indexer.IndexFile(context.Background(), "p", f)
 
 	chunks, err := hist.Chunks("p")
@@ -140,7 +140,7 @@ func TestReindexReplacesOldChunks(t *testing.T) {
 	if len(chunks) != 1 {
 		t.Fatalf("expected re-indexing to replace, not duplicate, got %d chunks", len(chunks))
 	}
-	if !strings.Contains(chunks[0].Text, "version deux") {
+	if !strings.Contains(chunks[0].Text, "version two") {
 		t.Errorf("expected the newer content, got %q", chunks[0].Text)
 	}
 }

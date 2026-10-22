@@ -77,7 +77,7 @@ func (m *M6Extras) handleBench(w http.ResponseWriter, r *http.Request) {
 	}
 	prompt := req.Prompt
 	if prompt == "" {
-		prompt = "Explique en deux phrases ce qu'est un grand modèle de langage."
+		prompt = "Explain in two sentences what a large language model is."
 	}
 	result, err := bench.Run(r.Context(), m.Server.Client, inst.BaseURL, req.Model, prompt)
 	if err != nil {

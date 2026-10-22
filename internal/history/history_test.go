@@ -17,10 +17,10 @@ func TestConversationAndMessages(t *testing.T) {
 		t.Fatalf("NewConversation: %v", err)
 	}
 
-	if _, err := s.AddMessage(conv.ID, "", "main", "user", "Bonjour"); err != nil {
+	if _, err := s.AddMessage(conv.ID, "", "main", "user", "Hello"); err != nil {
 		t.Fatalf("AddMessage: %v", err)
 	}
-	if _, err := s.AddMessage(conv.ID, "", "main", "assistant", "Salut !"); err != nil {
+	if _, err := s.AddMessage(conv.ID, "", "main", "assistant", "Hi there!"); err != nil {
 		t.Fatalf("AddMessage: %v", err)
 	}
 
@@ -31,7 +31,7 @@ func TestConversationAndMessages(t *testing.T) {
 	if len(msgs) != 2 {
 		t.Fatalf("got %d messages, want 2", len(msgs))
 	}
-	if msgs[0].Content != "Bonjour" || msgs[1].Content != "Salut !" {
+	if msgs[0].Content != "Hello" || msgs[1].Content != "Hi there!" {
 		t.Errorf("unexpected message order/content: %+v", msgs)
 	}
 }

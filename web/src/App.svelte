@@ -106,17 +106,12 @@
     { label: `${t(lang, "theme")}: ${t(lang, "light")}`, run: () => setTheme("light") },
     { label: `${t(lang, "theme")}: ${t(lang, "dark")}`, run: () => setTheme("dark") },
     { label: `${t(lang, "theme")}: ${t(lang, "system")}`, run: () => setTheme("system") },
-    { label: lang === "fr" ? "Langue : English" : "Language: Français", run: toggleLang },
   ];
 
   function setTheme(v: "system" | "light" | "dark") {
     theme = v;
     safeSet("runyx.theme", v);
     applyTheme();
-  }
-  function toggleLang() {
-    lang = lang === "fr" ? "en" : "fr";
-    safeSet("runyx.lang", lang);
   }
 
   function setReduceMotion(v: boolean) {

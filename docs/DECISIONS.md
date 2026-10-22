@@ -112,3 +112,36 @@ Simpler cross-platform story (Windows has no Unix sockets without extra
 code), and the loopback-only bind plus a per-install token already satisfies
 the "local only by default" security requirement. Revisit if we need to
 support multiple OS users on one machine safely.
+
+## 2026-10-22 — Android cleartext restricted to LAN/.local in code, not XML
+
+Item 23 (TLS with certificate pinning) is still not implemented — Runyx
+only ever talks plain `http://` between the Android app and a paired PC.
+Blanket `android:usesCleartextTraffic="true"` was replaced with an
+`android:networkSecurityConfig` pointing at
+`android/app/src/main/res/xml/network_security_config.xml`, but Android's
+`<domain>` entries only support exact hostnames/IPs and DNS-suffix
+matching (`includeSubdomains`) — there is no CIDR/subnet syntax, so "allow
+cleartext to 10.0.0.0/8 / 172.16.0.0/12 / 192.168.0.0/16" can't be
+expressed declaratively for arbitrary LAN IPs the way it can for a named
+domain. The actual restriction is enforced in code instead:
+`Pairing.kt`'s `isPrivateOrLocalHost()` refuses to pair with (and
+therefore the app never connects cleartext to) any host outside those
+private IPv4 ranges, loopback, or a `.local` name — covered by unit
+tests in `PairingTest.kt`. **TLS with certificate pinning (item 23)
+remains tracked future work**, now also listed in `docs/ROADMAP.md`.
+
+## 2026-10-22 — UI and docs in English only
+
+The web UI, CLI (help/messages/errors/prompts/progress), Android app,
+API error strings, logs, README and `docs/` are English-only. The
+previous bilingual FR/EN `web/src/lib/i18n.ts` dict and in-app language
+toggle were removed, but the **mechanism** is kept exactly as it was (a
+`Lang` union type + one string table per locale) so adding a locale
+later is a new union member and a new dict entry, not a rewrite. This
+does **not** touch voice *recognition* (item 25): the speech-to-text
+model still understands whatever language the user actually speaks —
+only the interface text itself is English. `RUNYX_PROMPT.md` (the
+original French spec) is kept as the historical record of what was
+asked, amended in place at §1 and items 25/29 to note this change
+rather than rewritten.

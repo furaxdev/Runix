@@ -39,7 +39,38 @@ fun parsePairingUrl(url: String): PairedHost {
     }
     val port = parts[1].toIntOrNull()
         ?: throw InvalidPairingCodeException("malformed port in pairing payload: ${parts[1]}")
-    return PairedHost(host = parts[0], port = port, token = parts[2])
+    val host = parts[0]
+    if (!isPrivateOrLocalHost(host)) {
+        throw InvalidPairingCodeException(
+            "refusing to pair with non-private host \"$host\": Runyx only talks " +
+                "cleartext HTTP to a PC on your own LAN (see docs/DECISIONS.md, item 23)"
+        )
+    }
+    return PairedHost(host = host, port = port, token = parts[2])
+}
+
+/**
+ * Reports whether host is something the app allows talking plain HTTP
+ * to: a private IPv4 range (RFC 1918), loopback, or an mDNS ".local"
+ * name. Android's network_security_config.xml can declare cleartext
+ * allowed for literal domain names (and the ".local" suffix), but it has
+ * no CIDR/subnet syntax for IP ranges — so for the common case of
+ * pairing with a bare LAN IP, this app-level check is what actually
+ * enforces "LAN only", matching what network_security_config.xml
+ * declares for name-based hosts.
+ */
+fun isPrivateOrLocalHost(host: String): Boolean {
+    if (host.endsWith(".local", ignoreCase = true)) return true
+    val octets = host.split(".").mapNotNull { it.toIntOrNull() }
+    if (octets.size != 4 || octets.any { it !in 0..255 }) return false
+    val (a, b, _, _) = octets
+    return when {
+        a == 10 -> true // 10.0.0.0/8
+        a == 172 && b in 16..31 -> true // 172.16.0.0/12
+        a == 192 && b == 168 -> true // 192.168.0.0/16
+        a == 127 -> true // 127.0.0.0/8 (loopback, same-device testing)
+        else -> false
+    }
 }
 
 /**

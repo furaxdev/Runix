@@ -67,7 +67,7 @@
       currentAudio = audio;
       audio.play();
     } catch (err) {
-      alert(`Synthèse vocale : ${err}`);
+      alert(`Speech synthesis: ${err}`);
     }
   }
 

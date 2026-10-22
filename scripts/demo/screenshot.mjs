@@ -10,7 +10,7 @@ const BASE_URL = process.env.RUNYX_BASE_URL ?? "http://127.0.0.1:11535";
 const OUT_DIR = process.env.RUNYX_OUT_DIR ?? "demo-output";
 const SHOTS_DIR = path.join(OUT_DIR, "screenshots");
 const VIDEO_DIR = path.join(OUT_DIR, "video");
-const PROMPT = process.env.RUNYX_PROMPT ?? "Explique en une phrase ce que tu es.";
+const PROMPT = process.env.RUNYX_PROMPT ?? "Explain in one sentence what you are.";
 
 // A minimal valid 1x1 PNG, used to exercise the real attachment-upload
 // pipeline without shipping a binary fixture in the repo.
@@ -39,7 +39,6 @@ async function setPrefs(page, theme, reduceMotion) {
       try {
         localStorage.setItem("runyx.theme", theme);
         localStorage.setItem("runyx.reduceMotion", reduceMotion ? "1" : "0");
-        localStorage.setItem("runyx.lang", "fr");
       } catch {
         /* ignore */
       }
@@ -65,7 +64,7 @@ async function newConversation(page) {
   // on a narrow/phone viewport) sidebar and in the empty-state — pick
   // whichever one is actually visible.
   const btn = page
-    .locator("button:visible", { hasText: /New conversation|Nouvelle conversation/i })
+    .locator("button:visible", { hasText: /New conversation/i })
     .first();
   await btn.click();
   await page.waitForSelector("textarea", { timeout: 10000 });

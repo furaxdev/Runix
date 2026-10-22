@@ -93,7 +93,7 @@ func Compress(ctx context.Context, msgs []Message, keepLast int, summarize Summa
 	compressed := make([]Message, 0, 1+len(recent))
 	compressed = append(compressed, Message{
 		Role:    "system",
-		Content: "Résumé de la conversation précédente (compressée pour économiser le contexte) :\n" + strings.TrimSpace(summary),
+		Content: "Summary of the earlier conversation (compressed to save context):\n" + strings.TrimSpace(summary),
 	})
 	compressed = append(compressed, recent...)
 	return compressed, nil

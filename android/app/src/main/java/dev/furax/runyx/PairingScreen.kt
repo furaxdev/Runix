@@ -36,15 +36,15 @@ fun PairingScreen(viewModel: RunyxViewModel) {
     ) {
         Text("Runyx", style = MaterialTheme.typography.displaySmall)
         Spacer(Modifier.height(8.dp))
-        Text("Appairez ce téléphone avec votre PC Runyx / Pair this phone with your Runyx PC.")
+        Text("Pair this phone with your Runyx PC.")
         Spacer(Modifier.height(24.dp))
 
         Button(onClick = { takePicture.launch(null) }) {
-            Text("Scanner le QR code / Scan QR code")
+            Text("Scan QR code")
         }
 
         Spacer(Modifier.height(16.dp))
-        Text("— ou / or —")
+        Text("— or —")
         Spacer(Modifier.height(16.dp))
 
         OutlinedTextField(
@@ -55,7 +55,7 @@ fun PairingScreen(viewModel: RunyxViewModel) {
         )
         Spacer(Modifier.height(8.dp))
         Button(onClick = { viewModel.pairWithCode(manualCode) }, modifier = Modifier.fillMaxWidth()) {
-            Text("Appairer / Pair")
+            Text("Pair")
         }
 
         viewModel.pairingError?.let {

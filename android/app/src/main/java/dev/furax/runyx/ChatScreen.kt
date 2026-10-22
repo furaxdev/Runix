@@ -40,7 +40,7 @@ fun ChatScreen(viewModel: RunyxViewModel, prefillText: String?) {
         TopAppBar(
             title = { Text(viewModel.selectedModel ?: "Runyx") },
             actions = {
-                TextButton(onClick = { viewModel.unpair() }) { Text("Déconnecter") }
+                TextButton(onClick = { viewModel.unpair() }) { Text("Disconnect") }
             }
         )
 
@@ -84,7 +84,7 @@ fun ChatScreen(viewModel: RunyxViewModel, prefillText: String?) {
                 value = input,
                 onValueChange = { input = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Écrivez un message...") }
+                placeholder = { Text("Type a message...") }
             )
             IconButtonText(
                 label = "➤",

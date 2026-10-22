@@ -60,7 +60,7 @@ func TestConvertArchive(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bundle.zip")
 	writeZip(t, path, map[string]string{
-		"readme.txt":  "Bonjour depuis l'archive",
+		"readme.txt":  "Hello from the archive",
 		"src/main.go": "package main",
 		"image.bin":   "\x00\x01\x02binary-not-inlined",
 	})
@@ -68,7 +68,7 @@ func TestConvertArchive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("File: %v", err)
 	}
-	if !strings.Contains(res.Text, "Bonjour depuis l'archive") {
+	if !strings.Contains(res.Text, "Hello from the archive") {
 		t.Error("expected readme.txt content inlined")
 	}
 	if !strings.Contains(res.Text, "package main") {

@@ -2,8 +2,8 @@
 // fallback (item 28): when the local model is too weak for a request,
 // route it to a remote OpenAI-compatible API using the user's own key
 // instead. Never automatic — a conversation or request must explicitly
-// ask for it, matching §7 ("aucune requête réseau en dehors de celles
-// demandées").
+// ask for it, matching §7 ("no network request outside the ones
+// requested").
 package remote
 
 import (

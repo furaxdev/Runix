@@ -70,7 +70,7 @@ func TestRunArenaComparesMultipleTargets(t *testing.T) {
 	srvB := fakeStreamingServer(t, 5, 5*time.Millisecond)
 	defer srvB.Close()
 
-	arena, err := RunArena(context.Background(), srvA.Client(), "même prompt", []Target{
+	arena, err := RunArena(context.Background(), srvA.Client(), "same prompt", []Target{
 		{BaseURL: srvA.URL, Model: "model-a"},
 		{BaseURL: srvB.URL, Model: "model-b"},
 	})

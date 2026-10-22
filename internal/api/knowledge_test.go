@@ -35,7 +35,7 @@ func TestProjectAndMemoryOverHTTP(t *testing.T) {
 	}
 
 	rec = doJSON(t, mux, "POST", "/api/runyx/memory", map[string]string{
-		"ProjectID": proj.ID, "Fact": "L'utilisateur aime le café.",
+		"ProjectID": proj.ID, "Fact": "The user likes coffee.",
 	})
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("add memory: status %d, body %s", rec.Code, rec.Body.String())

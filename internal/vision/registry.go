@@ -2,8 +2,8 @@ package vision
 
 // AuxiliaryModel is one recommended small vision model Runyx can pull
 // and run as the vision auxiliary for text-only models. Kept as a small
-// maintained registry per item 31 ("à toi de choisir et de tenir à jour
-// un registre de modèles vision recommandés").
+// maintained registry per item 31 ("pick and maintain a registry of
+// recommended vision models").
 type AuxiliaryModel struct {
 	Name       string
 	Repo       string // Hugging Face repo with the GGUF + mmproj files

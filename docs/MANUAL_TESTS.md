@@ -1,6 +1,6 @@
 # Manual tests
 
-Things marked `[~]` ("fait mais non testé") in `FEATURES.md` that a
+Things marked `[~]` ("done but untested") in `FEATURES.md` that a
 human should verify on real hardware with normal internet access. Updated
 at the end of every milestone.
 

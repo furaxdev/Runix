@@ -1,61 +1,12 @@
-export type Lang = "fr" | "en";
+// Single source of UI strings. English-only for now (see
+// docs/DECISIONS.md: "UI and docs in English only") — this mechanism
+// (a `Lang` union + one dict per locale) is kept exactly so a future
+// locale is just a new union member and a new `dict` entry, not a
+// rewrite. Voice *recognition* (item 25) is unrelated to this file and
+// keeps understanding whatever language the user speaks.
+export type Lang = "en";
 
 const dict: Record<Lang, Record<string, string>> = {
-  fr: {
-    newChat: "Nouvelle conversation",
-    conversations: "Conversations",
-    send: "Envoyer",
-    placeholder: "Écrivez un message...",
-    pin: "Épingler",
-    unpin: "Désépingler",
-    export: "Exporter",
-    search: "Rechercher...",
-    dashboard: "Tableau de bord",
-    model: "Modèle",
-    tokensPerSec: "tokens/s",
-    loadedModels: "Modèles chargés",
-    ram: "RAM",
-    vram: "VRAM",
-    backend: "Backend",
-    commandPalette: "Palette de commandes",
-    theme: "Thème",
-    light: "Clair",
-    dark: "Sombre",
-    system: "Système",
-    attachFile: "Joindre un fichier",
-    noConversations: "Aucune conversation. Commencez à écrire !",
-    editAndFork: "Modifier (crée une branche)",
-    branches: "Branches",
-    reduceMotion: "Réduire les animations",
-    recordVoice: "Parler (push-to-talk)",
-    recording: "Enregistrement... cliquez pour arrêter",
-    listenReply: "Écouter la réponse",
-    stopListening: "Arrêter la lecture",
-    navChat: "Discussion",
-    navModels: "Modèles",
-    navPairing: "Appairage",
-    navSettings: "Réglages",
-    modelsInstalled: "Modèles installés",
-    pullModel: "Télécharger un modèle",
-    pullModelPlaceholder: "ex. Qwen/Qwen2.5-0.5B-Instruct-GGUF",
-    pullButton: "Télécharger",
-    size: "Taille",
-    modified: "Modifié",
-    pairingTitle: "Appairer un téléphone",
-    pairingDesc: "Scannez ce QR code avec l'application Android Runyx pour appairer cet appareil.",
-    pairingGenerate: "Générer le QR code",
-    settingsTitle: "Réglages & permissions",
-    settingsAppearance: "Apparence",
-    settingsShellAgent: "Agent shell",
-    settingsEnabled: "Activé",
-    settingsDisabled: "Désactivé",
-    settingsVision: "Vision",
-    settingsVoice: "Voix",
-    settingsWebSearch: "Recherche web",
-    settingsDevices: "Appareils appairés",
-    settingsRevoke: "Révoquer",
-    settingsNoDevices: "Aucun appareil appairé.",
-  },
   en: {
     newChat: "New conversation",
     conversations: "Conversations",
@@ -114,19 +65,9 @@ const dict: Record<Lang, Record<string, string>> = {
 };
 
 export function detectLang(): Lang {
-  const stored = safeGet("runyx.lang");
-  if (stored === "fr" || stored === "en") return stored;
-  return navigator.language.toLowerCase().startsWith("fr") ? "fr" : "en";
+  return "en";
 }
 
 export function t(lang: Lang, key: string): string {
   return dict[lang][key] ?? key;
-}
-
-function safeGet(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
 }

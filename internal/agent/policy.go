@@ -55,9 +55,9 @@ type Policy struct {
 }
 
 // nonNegotiableDenyPrefixes can never be removed from a Policy by
-// configuration: no sudo, ever, matching §7 ("Pas de sudo... sans
-// validation explicite à chaque fois" — Runyx goes further and refuses
-// it outright rather than offering an approval prompt for it).
+// configuration: no sudo, ever, matching §7 ("no sudo... without
+// explicit validation every time" — Runyx goes further and refuses it
+// outright rather than offering an approval prompt for it).
 var nonNegotiableDenyPrefixes = []string{"sudo", "doas", "su"}
 
 // Validate checks a request against the policy and path-escape rules,

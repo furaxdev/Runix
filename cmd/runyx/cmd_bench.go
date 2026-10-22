@@ -18,7 +18,7 @@ func cmdBench(args []string) error {
 		return fmt.Errorf("usage: runyx bench <model> [prompt]")
 	}
 	name := args[0]
-	prompt := "Explique en deux phrases ce qu'est un grand modèle de langage."
+	prompt := "Explain in two sentences what a large language model is."
 	if len(args) > 1 {
 		prompt = args[1]
 	}

@@ -49,18 +49,18 @@ func TestAuxiliaryAskParsesResponse(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"choices": []map[string]any{
-				{"message": map[string]any{"content": "Une image avec le texte 'Bonjour Runyx'."}},
+				{"message": map[string]any{"content": "An image with the text 'Hello Runyx'."}},
 			},
 		})
 	}))
 	defer srv.Close()
 
 	c := &AuxiliaryClient{BaseURL: srv.URL}
-	answer, err := c.Ask(context.Background(), "testdata/sample.png", "Que vois-tu ?")
+	answer, err := c.Ask(context.Background(), "testdata/sample.png", "What do you see?")
 	if err != nil {
 		t.Fatalf("Ask: %v", err)
 	}
-	if !strings.Contains(answer, "Bonjour Runyx") {
+	if !strings.Contains(answer, "Hello Runyx") {
 		t.Errorf("answer = %q", answer)
 	}
 }
@@ -81,7 +81,7 @@ func TestBridgeCachesByImageHash(t *testing.T) {
 	data, _ := os.ReadFile("testdata/sample.png")
 	os.WriteFile(imgCopy, data, 0o644)
 
-	mock := &countingOCR{text: "Bonjour Runyx"}
+	mock := &countingOCR{text: "Hello Runyx"}
 	b := &Bridge{OCR: mock, CachePath: filepath.Join(dir, "cache.json")}
 	ctx := context.Background()
 

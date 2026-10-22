@@ -43,4 +43,27 @@ class PairingTest {
             parsePairingUrl("runyx://pair?d=aG9zdC1vbmx5")
         }
     }
+
+    @Test
+    fun `rejects a public-internet host`() {
+        // base64.RawURLEncoding("8.8.8.8:11535:runyx_abc123")
+        val url = "runyx://pair?d=OC44LjguODoxMTUzNTpydW55eF9hYmMxMjM"
+        assertThrows(InvalidPairingCodeException::class.java) {
+            parsePairingUrl(url)
+        }
+    }
+
+    @Test
+    fun `isPrivateOrLocalHost accepts RFC1918 ranges, loopback and mDNS names`() {
+        for (host in listOf("10.1.2.3", "172.16.0.1", "172.31.255.255", "192.168.0.1", "127.0.0.1", "mypc.local")) {
+            assert(isPrivateOrLocalHost(host)) { "$host should be allowed" }
+        }
+    }
+
+    @Test
+    fun `isPrivateOrLocalHost rejects public addresses and garbage`() {
+        for (host in listOf("8.8.8.8", "1.1.1.1", "172.32.0.1", "example.com", "not-an-ip")) {
+            assert(!isPrivateOrLocalHost(host)) { "$host should be rejected" }
+        }
+    }
 }

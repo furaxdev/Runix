@@ -3,26 +3,26 @@
 Status legend (per the project's honesty rule — never mark something
 "done" that wasn't actually verified):
 
-- `[x]` **fait et testé** — verified with a real run (actual model pull,
+- `[x]` **done and tested** — verified with a real run (actual model pull,
   actual HTTP call, actual file conversion, etc.), not just compiled.
-- `[~]` **fait mais non testé** — code is written and believed correct,
+- `[~]` **done but untested** — code is written and believed correct,
   but verification needs something this sandbox doesn't have (a GPU, a
   microphone, a real Android device, network access to a GitHub repo
   outside `furaxdev/runyx`...). The reason is always stated.
-- `[!]` **bloqué** — not done; blocker recorded in `docs/BLOCKED.md`.
+- `[!]` **blocked** — not done; blocker recorded in `docs/BLOCKED.md`.
 - `[ ]` not started.
 
 See `docs/MANUAL_TESTS.md` for the list of `[~]` items a human needs to
 verify on real hardware.
 
-## Base features (the "comme Ollama" set)
+## Base features (the "like Ollama" set)
 
 - [x] B1 Facile — `runyx run <model>` pulls+runs, tested end to end with
       a real 0.5B model download; full GUI exists (chat/sidebar/dashboard)
       but a model must still be pulled once via CLI first.
 - [x] B2 Rapide — thin HTTP proxy over llama-server; overhead not
       benchmarked yet (`runyx bench`, item 7, is M6).
-- [x] B3 Modèles — Hugging Face GGUF search/pull tested live
+- [x] B3 Models — Hugging Face GGUF search/pull tested live
       (`runyx pull Qwen/...` actually downloaded 468 MB); UI pull flow not
       built yet (CLI only).
 - [x] B4 Fichiers — universal attachment conversion tested (text, PDF,
@@ -73,7 +73,13 @@ verify on real hardware.
 - [x] 9. Dual API — `/api/*` and `/v1/*` tested live against the real
       daemon (tags, models, dashboard, chat routing).
 - [x] 23. Baseline security — loopback bind, per-device tokens,
-      revocation, no telemetry: all unit tested.
+      revocation, no telemetry: all unit tested. Note: the original
+      spec's "item 23" also covers TLS with certificate pinning for the
+      Android↔PC connection, which is NOT done — see `docs/ROADMAP.md`
+      ("Future work") and `docs/DECISIONS.md` (2026-10-22). Today that
+      connection is plain HTTP, restricted in code to private LAN
+      ranges and `.local` names (Android's `network_security_config.xml`
+      can't express that restriction by subnet).
 
 ## M2 — Chat & UI
 
@@ -90,10 +96,13 @@ verify on real hardware.
       file picker only.
 - [x] 29. UI identity — Svelte UI built and actually served by the daemon
       (verified live: `curl localhost:11535/` returns the built page);
-      light/dark theme via CSS, Ctrl+K command palette, FR/EN i18n,
-      discreet dashboard (RAM/VRAM/loaded models) all present. Visual
-      polish (micro-animations, accessibility pass, settings panel for
-      "reduce motion") is minimal — functional, not refined.
+      light/dark theme via CSS, Ctrl+K command palette, English-only
+      i18n (see 2026-10-22 amendment in `docs/DECISIONS.md` — previously
+      FR/EN, now English-only; the `Lang` union + per-locale dict
+      mechanism is kept for adding a locale later), discreet dashboard
+      (RAM/VRAM/loaded models) all present. Visual polish
+      (micro-animations, accessibility pass, settings panel for "reduce
+      motion") is minimal — functional, not refined.
 - [x] 31. Vision bridge — OCR tested against a real generated image;
       image-hash cache tested (call-counted, proven not to re-run OCR);
       `look_at_image` mechanism implemented and unit tested against a
@@ -189,9 +198,13 @@ verify on real hardware.
       HTTP (verified both the 503-when-unavailable degrade and, in the
       web UI, a real push-to-talk mic button using MediaRecorder +
       playback with interruption — speaking again stops any reply being
-      read aloud). FR/EN auto-detection comes for free from whisper.cpp's
-      own language detection (no extra Runyx logic needed), but was
-      never exercised against a real whisper.cpp run (see docs/BLOCKED.md).
+      read aloud). Automatic spoken-language detection (French and
+      others) comes for free from whisper.cpp's own language detection
+      (no extra Runyx logic needed) and is explicitly unaffected by the
+      2026-10-22 English-only UI amendment — only the interface text is
+      English, voice recognition still understands whatever language the
+      user speaks. Never exercised against a real whisper.cpp run (see
+      docs/BLOCKED.md).
       Hands-free/wake-word activation is NOT implemented — that needs a
       dedicated wake-word model this session didn't build or integrate;
       tracked as a gap, not silently dropped.

@@ -26,3 +26,15 @@ This session's cloud sandbox is Linux-only, so Windows/macOS builds are
 verified via `GOOS`/`GOARCH` cross-compilation in CI rather than native
 runs; native testing on those platforms is a follow-up for maintainers
 with access to that hardware.
+
+## Future work (not scheduled to a milestone)
+
+- **Item 23 — TLS with certificate pinning** for the Android↔PC
+  connection. Today that connection is plain `http://`, restricted to
+  private LAN ranges and `.local` names at the app level (see
+  `docs/DECISIONS.md`, 2026-10-22) since Android's
+  `network_security_config.xml` has no way to express that restriction
+  by subnet. Real TLS (a self-signed cert generated at first `runyx
+  serve` + pinned by the Android app during pairing, most likely) would
+  close the remaining gap: an on-path attacker on the same LAN could
+  still observe or tamper with the plaintext traffic today.

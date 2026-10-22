@@ -69,8 +69,8 @@ func Snapshot(ctx context.Context, dir, label string) (string, error) {
 }
 
 // Diff returns the working tree's changes since a prior snapshot commit
-// (or since HEAD if since is empty), for the "aperçu des diffs"
-// requirement — shown to the user before/after a command runs.
+// (or since HEAD if since is empty), for the "diff preview" requirement
+// — shown to the user before/after a command runs.
 func Diff(ctx context.Context, dir, since string) (string, error) {
 	if since == "" {
 		since = "HEAD"

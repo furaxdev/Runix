@@ -10,11 +10,13 @@
     <application
         android:label="Runyx"
         android:theme="@style/Theme.Runyx"
-        android:usesCleartextTraffic="true">
+        android:networkSecurityConfig="@xml/network_security_config">
         <!-- The paired PC is always reached over plain http://<lan-ip>:<port>
              (Runyx has no HTTPS story for a device the user pairs on their
-             own LAN), and Android 9+ blocks cleartext traffic by default,
-             so every request to the PC would otherwise fail outright. -->
+             own LAN), and Android 9+ blocks cleartext traffic by default.
+             @xml/network_security_config allows cleartext; the "LAN/.local
+             only" restriction is enforced in code — see
+             Pairing.kt's isPrivateOrLocalHost() and that file's comment. -->
 
         <activity
             android:name=".MainActivity"

@@ -16,7 +16,7 @@ func TestProxyForwardsRequestAndAuth(t *testing.T) {
 		gotAuth = r.Header.Get("Authorization")
 		json.NewDecoder(r.Body).Decode(&gotBody)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"choices":[{"message":{"content":"réponse distante"}}]}`))
+		w.Write([]byte(`{"choices":[{"message":{"content":"remote reply"}}]}`))
 	}))
 	defer srv.Close()
 
@@ -24,7 +24,7 @@ func TestProxyForwardsRequestAndAuth(t *testing.T) {
 		"test-provider": {Name: "test-provider", BaseURL: srv.URL, APIKey: "sk-test-123"},
 	}}
 
-	reqBody := []byte(`{"model":"gpt-4","messages":[{"role":"user","content":"bonjour"}]}`)
+	reqBody := []byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hello"}]}`)
 	status, body, err := router.Proxy(context.Background(), "test-provider", reqBody)
 	if err != nil {
 		t.Fatalf("Proxy: %v", err)
@@ -38,7 +38,7 @@ func TestProxyForwardsRequestAndAuth(t *testing.T) {
 	if gotBody["model"] != "gpt-4" {
 		t.Errorf("forwarded body = %v", gotBody)
 	}
-	if !strings.Contains(string(body), "réponse distante") {
+	if !strings.Contains(string(body), "remote reply") {
 		t.Errorf("response body = %s", body)
 	}
 }

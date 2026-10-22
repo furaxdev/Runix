@@ -114,11 +114,11 @@ func Recommend(info Info) []Recommendation {
 func headroomLabel(pctFree int) string {
 	switch {
 	case pctFree >= 50:
-		return "confortable"
+		return "comfortable"
 	case pctFree >= 20:
-		return "correct"
+		return "ok"
 	default:
-		return "serré"
+		return "tight"
 	}
 }
 

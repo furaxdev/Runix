@@ -56,7 +56,7 @@ func TestConversationLifecycleOverHTTP(t *testing.T) {
 	}
 
 	rec = doJSON(t, mux, "POST", "/api/runyx/conversations/"+conv.ID+"/messages",
-		map[string]string{"Role": "user", "Content": "Bonjour"})
+		map[string]string{"Role": "user", "Content": "Hello"})
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("add message: status %d, body %s", rec.Code, rec.Body.String())
 	}
@@ -67,7 +67,7 @@ func TestConversationLifecycleOverHTTP(t *testing.T) {
 	}
 	var msgs []map[string]any
 	json.Unmarshal(rec.Body.Bytes(), &msgs)
-	if len(msgs) != 1 || msgs[0]["Content"] != "Bonjour" {
+	if len(msgs) != 1 || msgs[0]["Content"] != "Hello" {
 		t.Errorf("messages = %v", msgs)
 	}
 
@@ -84,11 +84,11 @@ func TestConversationLifecycleOverHTTP(t *testing.T) {
 	}
 
 	rec = doJSON(t, mux, "GET", "/api/runyx/conversations/"+conv.ID+"/export?format=markdown", nil)
-	if rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte("Bonjour")) {
+	if rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte("Hello")) {
 		t.Errorf("export markdown: status %d, body %q", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, mux, "GET", "/api/runyx/search?q=Bonjour", nil)
+	rec = doJSON(t, mux, "GET", "/api/runyx/search?q=Hello", nil)
 	var results []map[string]any
 	json.Unmarshal(rec.Body.Bytes(), &results)
 	if len(results) != 1 {
@@ -121,7 +121,7 @@ func TestAttachmentUploadTextFile(t *testing.T) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	part, _ := w.CreateFormFile("file", "notes.md")
-	part.Write([]byte("# Titre\n\nBonjour depuis le test"))
+	part.Write([]byte("# Titre\n\nHello depuis le test"))
 	w.Close()
 
 	req := httptest.NewRequest("POST", "/api/runyx/attachments", &buf)

@@ -7,8 +7,9 @@ import (
 )
 
 // FolderWatcher watches a directory and invokes OnFile for each new or
-// modified file ("tous les matins, résume ce dossier" style automation
-// — the actual summarization action is the caller's business).
+// modified file ("every morning, summarize this folder" style
+// automation — the actual summarization action is the caller's
+// business).
 type FolderWatcher struct {
 	watcher *fsnotify.Watcher
 	OnFile  func(path string, op string)

@@ -20,7 +20,7 @@ func TestRegisterAndDispatch(t *testing.T) {
 	}, func(ctx context.Context, rawArgs json.RawMessage) (string, error) {
 		var args struct{ City string }
 		json.Unmarshal(rawArgs, &args)
-		return "ensoleillé à " + args.City, nil
+		return "sunny in " + args.City, nil
 	})
 
 	if len(r.Defs()) != 1 || r.Defs()[0].Function.Name != "get_weather" {

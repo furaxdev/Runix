@@ -52,7 +52,7 @@ func TestUserMemoryVisibleAndDeletable(t *testing.T) {
 	s, _ := Open(t.TempDir())
 	defer s.Close()
 
-	m, err := s.AddMemory("", "L'utilisateur préfère les réponses courtes.")
+	m, err := s.AddMemory("", "The user prefers short answers.")
 	if err != nil {
 		t.Fatalf("AddMemory: %v", err)
 	}
