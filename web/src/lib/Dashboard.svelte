@@ -20,7 +20,7 @@
       {/if}
     </dl>
     <h3>{t(lang, "loadedModels")}</h3>
-    {#if stats.loaded_models.length === 0}
+    {#if (stats.loaded_models ?? []).length === 0}
       <p class="muted">—</p>
     {:else}
       <ul>

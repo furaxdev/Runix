@@ -7,6 +7,12 @@
   import Dashboard from "./lib/Dashboard.svelte";
   import Chat from "./lib/Chat.svelte";
   import CommandPalette from "./lib/CommandPalette.svelte";
+  import Models from "./lib/Models.svelte";
+  import Pairing from "./lib/Pairing.svelte";
+  import Settings from "./lib/Settings.svelte";
+
+  type View = "chat" | "models" | "pairing" | "settings";
+  let view: View = "chat";
 
   let lang: Lang = detectLang();
   let theme: "system" | "light" | "dark" = (safeGet("runyx.theme") as any) ?? "system";
@@ -41,12 +47,15 @@
   }
 
   async function refreshConversations() {
-    conversations = await api.listConversations().catch(() => []);
+    // The API returns a bare JSON `null` (not `[]`) when there are no
+    // conversations yet, since it's backed by a nil Go slice — guard
+    // against that here rather than only on a request *error*.
+    conversations = (await api.listConversations().catch(() => [])) ?? [];
   }
 
   async function refreshMessages() {
     if (!activeId) return;
-    messages = await api.messages(activeId).catch(() => []);
+    messages = (await api.messages(activeId).catch(() => [])) ?? [];
   }
 
   async function refreshDashboard() {
@@ -109,29 +118,50 @@
     lang = lang === "fr" ? "en" : "fr";
     safeSet("runyx.lang", lang);
   }
+
+  function setReduceMotion(v: boolean) {
+    reduceMotion = v;
+    safeSet("runyx.reduceMotion", v ? "1" : "0");
+    applyTheme();
+  }
 </script>
 
 <div class="app">
-  <Sidebar
-    {lang}
-    {conversations}
-    {activeId}
-    onSelect={selectConversation}
-    onNew={newConversation}
-    onTogglePin={togglePin}
-  />
+  <nav class="rail">
+    <button class:active={view === "chat"} on:click={() => (view = "chat")} title={t(lang, "navChat")}>💬</button>
+    <button class:active={view === "models"} on:click={() => (view = "models")} title={t(lang, "navModels")}>📦</button>
+    <button class:active={view === "pairing"} on:click={() => (view = "pairing")} title={t(lang, "navPairing")}>📱</button>
+    <button class:active={view === "settings"} on:click={() => (view = "settings")} title={t(lang, "navSettings")}>⚙️</button>
+  </nav>
 
-  {#if activeId}
-    <Chat {lang} conversationId={activeId} model={currentModel} {messages} onMessagesChanged={refreshMessages} />
-  {:else}
-    <div class="empty-state">
-      <h1>Runyx</h1>
-      <p>{t(lang, "noConversations")}</p>
-      <button on:click={newConversation}>+ {t(lang, "newChat")}</button>
-    </div>
+  {#if view === "chat"}
+    <Sidebar
+      {lang}
+      {conversations}
+      {activeId}
+      onSelect={selectConversation}
+      onNew={newConversation}
+      onTogglePin={togglePin}
+    />
+
+    {#if activeId}
+      <Chat {lang} conversationId={activeId} model={currentModel} {messages} onMessagesChanged={refreshMessages} />
+    {:else}
+      <div class="empty-state">
+        <h1>Runyx</h1>
+        <p>{t(lang, "noConversations")}</p>
+        <button on:click={newConversation}>+ {t(lang, "newChat")}</button>
+      </div>
+    {/if}
+
+    <Dashboard {lang} {stats} />
+  {:else if view === "models"}
+    <Models {lang} />
+  {:else if view === "pairing"}
+    <Pairing {lang} />
+  {:else if view === "settings"}
+    <Settings {lang} {theme} {reduceMotion} onSetTheme={setTheme} onToggleReduceMotion={setReduceMotion} />
   {/if}
-
-  <Dashboard {lang} {stats} />
 </div>
 
 <CommandPalette {lang} bind:open={paletteOpen} {commands} />
@@ -163,6 +193,30 @@
     background: var(--bg-elevated);
     border-radius: var(--radius-md);
     padding: 0.6rem 1.2rem;
+    color: var(--text);
+  }
+  .rail {
+    width: 52px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 0;
+    background: var(--bg-sunken);
+    border-right: 1px solid var(--border);
+  }
+  .rail button {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-md);
+    font-size: 1.1rem;
+    color: var(--text-muted);
+  }
+  .rail button.active {
+    background: var(--bg-elevated);
     color: var(--text);
   }
 </style>

@@ -29,6 +29,32 @@ export interface DashboardStats {
   backend: string;
 }
 
+export interface ModelEntry {
+  name: string;
+  modified_at: string;
+  size: number;
+  digest: string;
+}
+
+export interface DeviceInfo {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface PermissionsSnapshot {
+  shell_agent: {
+    enabled: boolean;
+    work_dir: string;
+    allow_prefixes: string[];
+    deny_prefixes: string[];
+  };
+  vision_enabled: boolean;
+  voice_enabled: boolean;
+  web_search_on: boolean;
+  devices: DeviceInfo[];
+}
+
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -64,6 +90,28 @@ export const api = {
   search: (q: string) => fetch(`/api/runyx/search?q=${encodeURIComponent(q)}`).then((r) => json<Message[]>(r)),
   dashboard: () => fetch("/api/runyx/dashboard").then((r) => json<DashboardStats>(r)),
   models: () => fetch("/v1/models").then((r) => json<{ data: { id: string }[] }>(r)),
+  tags: () => fetch("/api/tags").then((r) => json<{ models: ModelEntry[] }>(r)),
+  pull: (name: string) =>
+    fetch("/api/pull", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }).then((r) => json<{ status: string }>(r)),
+  permissions: () => fetch("/api/runyx/permissions").then((r) => json<PermissionsSnapshot>(r)),
+  revokeDevice: (id: string) => fetch(`/api/runyx/permissions/devices/${id}`, { method: "DELETE" }),
+  pairingQRCode: async (deviceName: string): Promise<{ ok: true; url: string } | { ok: false; error: string }> => {
+    const res = await fetch("/api/runyx/pairing/qrcode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ DeviceName: deviceName }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      return { ok: false, error: body.error ?? `HTTP ${res.status}` };
+    }
+    const blob = await res.blob();
+    return { ok: true, url: URL.createObjectURL(blob) };
+  },
   transcribeAudio: (blob: Blob): Promise<{ text: string; warnings?: string[] }> => {
     const form = new FormData();
     form.append("file", blob, "recording.webm");
