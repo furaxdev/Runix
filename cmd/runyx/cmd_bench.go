@@ -7,6 +7,7 @@ import (
 
 	"github.com/furaxdev/runyx/internal/backend"
 	"github.com/furaxdev/runyx/internal/bench"
+	"github.com/furaxdev/runyx/internal/downloader"
 	"github.com/furaxdev/runyx/internal/modelstore"
 )
 
@@ -34,10 +35,14 @@ func cmdBench(args []string) error {
 		return fmt.Errorf("model %q not found; try `runyx list`", name)
 	}
 
-	binPath := resolveBackendBinary(cfg)
-	if binPath == "" {
-		return fmt.Errorf("no llama-server backend available; see `runyx doctor`")
+	binPath, err := resolveBackendBinaryBlocking(cfg, func(p downloader.Progress) {
+		printProgress(p)
+	})
+	if err != nil {
+		fmt.Println()
+		return fmt.Errorf("fetch llama-server backend: %w", err)
 	}
+	fmt.Println()
 
 	mgr := backend.NewManager(binPath, 0, cfg.VRAMBudgetMB)
 	defer mgr.StopAll()

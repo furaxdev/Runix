@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/furaxdev/runyx/internal/backend"
+	"github.com/furaxdev/runyx/internal/downloader"
 	"github.com/furaxdev/runyx/internal/hwdetect"
 	"github.com/furaxdev/runyx/internal/modelstore"
 )
@@ -37,10 +38,14 @@ func cmdRun(args []string) error {
 		}
 	}
 
-	binPath := resolveBackendBinary(cfg)
-	if binPath == "" {
-		return fmt.Errorf("no llama-server backend available; check your network connection and try again (see `runyx doctor`)")
+	binPath, err := resolveBackendBinaryBlocking(cfg, func(p downloader.Progress) {
+		printProgress(p)
+	})
+	if err != nil {
+		fmt.Println()
+		return fmt.Errorf("fetch llama-server backend: %w", err)
 	}
+	fmt.Println()
 
 	mdl, ok, err := store.Get(name)
 	if err != nil {

@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"time"
 
+	"github.com/furaxdev/runyx/internal/backend"
 	"github.com/furaxdev/runyx/internal/config"
+	"github.com/furaxdev/runyx/internal/downloader"
+	"github.com/furaxdev/runyx/internal/hwdetect"
 	"github.com/furaxdev/runyx/internal/modelstore"
 )
 
@@ -23,4 +28,20 @@ func loadStore() (config.Config, *modelstore.Store, error) {
 		return config.Config{}, nil, err
 	}
 	return cfg, store, nil
+}
+
+// resolveBackendBinaryBlocking is resolveBackendBinary's counterpart for
+// commands that the user explicitly asked to run a model (`run`,
+// `bench`): unlike `serve` on startup, these should actually wait for a
+// real network fetch instead of giving up after 5 seconds, the same way
+// `pull` already blocks for the model weights themselves.
+func resolveBackendBinaryBlocking(cfg config.Config, onProgress downloader.ProgressFunc) (string, error) {
+	if path := findCachedBackend(cfg.BackendsDir); path != "" {
+		return path, nil
+	}
+	info := hwdetect.Detect()
+	fetcher := backend.NewFetcher(cfg.BackendsDir)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	return fetcher.Ensure(ctx, info, onProgress)
 }
