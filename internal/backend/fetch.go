@@ -310,7 +310,19 @@ func extractServerBinary(archive, destDir string) error {
 func wantedArchiveMembers() (wanted string, isWantedLib func(base string) bool) {
 	wanted = serverBinaryName()
 	isWantedLib = func(base string) bool {
-		return strings.HasSuffix(base, ".dll") || strings.HasSuffix(base, ".so") || strings.HasSuffix(base, ".dylib")
+		lower := strings.ToLower(base)
+		if strings.HasSuffix(lower, ".dll") {
+			return true
+		}
+		// Linux shared libraries commonly carry a version suffix after
+		// ".so" (libllama-common.so.0, libggml.so.1.2.3, ...), and macOS
+		// dylibs put the version before the extension
+		// (libfoo.1.2.3.dylib) — a plain HasSuffix(".so"/".dylib") check
+		// misses both, silently dropping a real runtime dependency
+		// (this broke `runyx run` in CI: llama-server failed with
+		// "error while loading shared libraries: libllama-common.so.0:
+		// cannot open shared object file").
+		return strings.Contains(lower, ".so") || strings.Contains(lower, ".dylib")
 	}
 	return
 }

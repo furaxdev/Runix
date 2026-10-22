@@ -183,13 +183,21 @@ func TestLatestReleaseFollowsNightlyTagPointer(t *testing.T) {
 
 // TestExtractServerBinaryFromTarGz guards the .tar.gz extraction path
 // (used on Linux and macOS, where llama.cpp ships tar.gz rather than
-// zip) end-to-end: build a real tar.gz containing a server binary plus
-// an unrelated file, extract it, and check only the wanted file lands.
+// zip) end-to-end: build a real tar.gz containing a server binary, a
+// versioned shared library it depends on, and an unrelated file, extract
+// it, and check exactly the wanted files land. This is a real regression:
+// a plain HasSuffix(".so") check missed "libllama-common.so.0" (the
+// version suffix comes after ".so", not before it), so llama-server
+// downloaded and extracted fine but then failed at startup with "error
+// while loading shared libraries: libllama-common.so.0: cannot open
+// shared object file" — exactly what CI hit.
 func TestExtractServerBinaryFromTarGz(t *testing.T) {
 	dir := t.TempDir()
 	archive := filepath.Join(dir, "llama-b1-bin-ubuntu-x64.tar.gz")
 	writeTestTarGz(t, archive, map[string]string{
 		"build/bin/" + serverBinaryName(): "fake server binary",
+		"build/bin/libllama-common.so.0":  "fake versioned shared lib",
+		"build/bin/libggml-base.so":       "fake unversioned shared lib",
 		"build/bin/README.md":             "not wanted",
 	})
 
@@ -203,6 +211,12 @@ func TestExtractServerBinaryFromTarGz(t *testing.T) {
 	}
 	if string(got) != "fake server binary" {
 		t.Errorf("extracted binary content = %q", got)
+	}
+	if _, err := os.ReadFile(filepath.Join(destDir, "libllama-common.so.0")); err != nil {
+		t.Errorf("expected the versioned shared library to be extracted: %v", err)
+	}
+	if _, err := os.ReadFile(filepath.Join(destDir, "libggml-base.so")); err != nil {
+		t.Errorf("expected the unversioned shared library to be extracted: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(destDir, "README.md")); !os.IsNotExist(err) {
 		t.Error("expected README.md to NOT be extracted")
