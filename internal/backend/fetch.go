@@ -117,6 +117,16 @@ func containsAny(s string, substrs ...string) bool {
 func (f *Fetcher) Ensure(ctx context.Context, info hwdetect.Info, onProgress downloader.ProgressFunc) (string, error) {
 	release, err := f.latestRelease(ctx)
 	if err != nil {
+		// GitHub's releases API is unauthenticated here and rate-limited
+		// per source IP (60 req/hour) — easy to exhaust on a shared CI
+		// runner pool, or offline. Resolving "latest" always requires
+		// the network even when a perfectly usable build is already on
+		// disk from a previous run, so before failing outright, fall
+		// back to whatever release tag is already cached for this
+		// os/arch rather than refusing to start at all.
+		if cached, ok := f.anyCachedBinary(info); ok {
+			return cached, nil
+		}
 		return "", fmt.Errorf("fetch latest llama.cpp release: %w", err)
 	}
 	asset, err := PickAsset(info, release.Assets)
@@ -149,6 +159,33 @@ func (f *Fetcher) Ensure(ctx context.Context, info hwdetect.Info, onProgress dow
 		}
 	}
 	return binPath, nil
+}
+
+// anyCachedBinary looks for a previously downloaded llama-server under
+// f.Dir matching info's os/arch, regardless of release tag, picking the
+// most recently extracted one if more than one is cached.
+func (f *Fetcher) anyCachedBinary(info hwdetect.Info) (string, bool) {
+	entries, err := os.ReadDir(f.Dir)
+	if err != nil {
+		return "", false
+	}
+	suffix := fmt.Sprintf("-%s-%s", info.OS, info.Arch)
+	var best string
+	var bestMod int64
+	for _, e := range entries {
+		if !e.IsDir() || !strings.HasSuffix(e.Name(), suffix) {
+			continue
+		}
+		binPath := filepath.Join(f.Dir, e.Name(), serverBinaryName())
+		fi, err := os.Stat(binPath)
+		if err != nil {
+			continue
+		}
+		if mod := fi.ModTime().Unix(); best == "" || mod > bestMod {
+			best, bestMod = binPath, mod
+		}
+	}
+	return best, best != ""
 }
 
 func (f *Fetcher) latestRelease(ctx context.Context) (ghRelease, error) {
