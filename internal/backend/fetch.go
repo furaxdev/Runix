@@ -349,8 +349,19 @@ func extractServerBinaryFromZip(archive, destDir string) error {
 		if err != nil {
 			return err
 		}
-		err = writeExtractedFile(filepath.Join(destDir, base), rc)
-		rc.Close()
+		if zf.Mode()&os.ModeSymlink != 0 {
+			// A zip stores a symlink's target path as the entry's
+			// "content" rather than real file bytes.
+			target, readErr := io.ReadAll(rc)
+			rc.Close()
+			if readErr != nil {
+				return readErr
+			}
+			err = os.Symlink(string(target), filepath.Join(destDir, base))
+		} else {
+			err = writeExtractedFile(filepath.Join(destDir, base), rc)
+			rc.Close()
+		}
 		if err != nil {
 			return err
 		}
@@ -384,7 +395,18 @@ func extractServerBinaryFromTarGz(archive, destDir string) error {
 		if err != nil {
 			return err
 		}
-		if hdr.Typeflag != tar.TypeReg {
+		// Upstream ships each versioned shared library as a chain of
+		// symlinks down to the real file (libfoo.so -> libfoo.so.0 ->
+		// libfoo.so.1.2.3), and the binary dlopens it by one of the
+		// symlinked names, not the real one — skipping TypeSymlink
+		// entries (as if only TypeReg mattered) silently dropped the
+		// exact filename llama-server actually needed, even though the
+		// real file landed on disk under its own name. This is the
+		// fix for a real CI failure: llama-server downloaded and
+		// "extracted" fine, then failed at the dynamic linker with
+		// "libllama-common.so.0: cannot open shared object file" —
+		// that name was always a symlink, never a regular file.
+		if hdr.Typeflag != tar.TypeReg && hdr.Typeflag != tar.TypeSymlink {
 			continue
 		}
 		base := filepath.Base(hdr.Name)
@@ -394,6 +416,12 @@ func extractServerBinaryFromTarGz(archive, destDir string) error {
 		}
 		if isServer {
 			found = true
+		}
+		if hdr.Typeflag == tar.TypeSymlink {
+			if err := os.Symlink(hdr.Linkname, filepath.Join(destDir, base)); err != nil {
+				return err
+			}
+			continue
 		}
 		if err := writeExtractedFile(filepath.Join(destDir, base), tr); err != nil {
 			return err

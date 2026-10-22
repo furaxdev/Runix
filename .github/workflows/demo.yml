@@ -63,15 +63,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.RUNYX_HOME }}/data/backends
-          # v2: force a fresh extraction once. Ensure() only checks that
-          # the server binary file exists before trusting a cached
-          # release dir ("already cached" in internal/backend/fetch.go),
-          # never that its sibling shared libraries extracted correctly
-          # — so once a broken extraction (missing a versioned .so) got
-          # cached under v1, it stayed broken forever even after the
-          # extraction bug itself was fixed, since a hit always skips
-          # re-extracting entirely.
-          key: runyx-demo-backend-linux-amd64-v2
+          # v3: the v1->v2 bump alone wasn't enough — v2's first run hit
+          # a second extraction bug (symlinked libraries skipped, see
+          # extractServerBinaryFromTarGz) and cached ITS broken output
+          # too, for the exact same "a hit always skips re-extracting"
+          # reason. Ensure() only checks that the server binary file
+          # exists before trusting a cached release dir ("already
+          # cached" in internal/backend/fetch.go), never that its
+          # sibling shared libraries extracted correctly, so any
+          # extraction bug present the first time a given key is
+          # populated stays cached under that key forever. Bump this
+          # key again if a future extraction fix needs to invalidate it.
+          key: runyx-demo-backend-linux-amd64-v3
 
       # Caches the pulled GGUF model (and its models.json registry
       # sidecar) across runs. `runyx run`/`pull` below check `runyx

@@ -223,7 +223,54 @@ func TestExtractServerBinaryFromTarGz(t *testing.T) {
 	}
 }
 
+// TestExtractServerBinaryFollowsSymlinkedLibraries guards the real CI
+// failure that TestExtractServerBinaryFromTarGz's plain-regular-file
+// setup didn't catch: upstream llama.cpp ships each versioned shared
+// library as a symlink chain (libllama-common.so -> libllama-common.so.0
+// -> libllama-common.so.0.7.0, the last being the only regular file),
+// and llama-server dlopens it by the *symlinked* name
+// ("libllama-common.so.0"), not the real one. Treating only
+// tar.TypeReg entries as extractable silently dropped every symlink,
+// so the real file landed on disk under its own name but the name the
+// binary actually looked for never existed — exactly the
+// "cannot open shared object file" failure CI hit.
+func TestExtractServerBinaryFollowsSymlinkedLibraries(t *testing.T) {
+	dir := t.TempDir()
+	archive := filepath.Join(dir, "llama-b1-bin-ubuntu-x64.tar.gz")
+	writeTestTarGzWithSymlinks(t, archive,
+		map[string]string{
+			"llama-b1/" + serverBinaryName():    "fake server binary",
+			"llama-b1/libllama-common.so.0.7.0": "the real shared library bytes",
+		},
+		map[string]string{
+			"llama-b1/libllama-common.so.0": "libllama-common.so.0.7.0", // symlink -> real file
+			"llama-b1/libllama-common.so":   "libllama-common.so.0",     // symlink -> symlink
+		},
+	)
+
+	destDir := filepath.Join(dir, "out")
+	if err := extractServerBinary(archive, destDir); err != nil {
+		t.Fatalf("extractServerBinary: %v", err)
+	}
+	// This is the exact name llama-server's dynamic linker looks for —
+	// it must resolve to the real library content, not be missing.
+	got, err := os.ReadFile(filepath.Join(destDir, "libllama-common.so.0"))
+	if err != nil {
+		t.Fatalf("read libllama-common.so.0 (should resolve through the symlink): %v", err)
+	}
+	if string(got) != "the real shared library bytes" {
+		t.Errorf("libllama-common.so.0 content = %q, want the real library's bytes", got)
+	}
+}
+
 func writeTestTarGz(t *testing.T, path string, files map[string]string) {
+	t.Helper()
+	writeTestTarGzWithSymlinks(t, path, files, nil)
+}
+
+// writeTestTarGzWithSymlinks writes files as regular tar entries and
+// symlinks as tar.TypeSymlink entries (value = link target).
+func writeTestTarGzWithSymlinks(t *testing.T, path string, files, symlinks map[string]string) {
 	t.Helper()
 	f, err := os.Create(path)
 	if err != nil {
@@ -239,6 +286,12 @@ func writeTestTarGz(t *testing.T, path string, files map[string]string) {
 		}
 		if _, err := tw.Write([]byte(content)); err != nil {
 			t.Fatalf("write tar content: %v", err)
+		}
+	}
+	for name, target := range symlinks {
+		hdr := &tar.Header{Name: name, Typeflag: tar.TypeSymlink, Linkname: target, Mode: 0o777}
+		if err := tw.WriteHeader(hdr); err != nil {
+			t.Fatalf("write tar symlink header: %v", err)
 		}
 	}
 	if err := tw.Close(); err != nil {
