@@ -89,6 +89,10 @@ async function runThemePass(browser, theme) {
     colorScheme: theme,
   });
   const page = await context.newPage();
+  page.on("dialog", async (d) => {
+    console.error(`[${theme}] unexpected alert(): ${d.message()}`);
+    await d.accept();
+  });
 
   await gotoReady(page);
   await setPrefs(page, theme, true);

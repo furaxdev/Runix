@@ -98,6 +98,12 @@ jobs:
       - name: Terminal demo — bench
         run: ./runyx bench "$MODEL_SPEC" | tee demo-output/terminal/05-bench.txt
 
+      # The attachment screenshot uploads a real image; without tesseract
+      # installed, Runyx has no way to analyze it (no vision model is
+      # loaded either) and the upload errors out server-side.
+      - name: Install tesseract (for the image-attachment screenshot)
+        run: sudo apt-get update -y && sudo apt-get install -y tesseract-ocr
+
       - name: Start runyx serve
         run: |
           ./runyx serve > demo-output/terminal/serve.log 2>&1 &
