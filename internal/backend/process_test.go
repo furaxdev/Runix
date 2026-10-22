@@ -4,7 +4,40 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/furaxdev/runyx/internal/modelstore"
 )
+
+// TestServerArgsPassesFlashAttnAValue guards a real CI failure: a
+// current llama-server build rejects a bare "--flash-attn" flag
+// ("expected value for argument") because the flag now takes an
+// explicit on/off/auto value. Found via internal/backend's new output
+// capture in a real CI run after llama-server had started crash-free
+// for the first time (past the earlier release-resolution and
+// extraction bugs).
+func TestServerArgsPassesFlashAttnAValue(t *testing.T) {
+	args := serverArgs("/models/foo.gguf", 12345, modelstore.TuningParams{
+		CtxSize: 4096, BatchSize: 512, Threads: 4, FlashAttn: true,
+	})
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--flash-attn on") {
+		t.Errorf("args = %q, want \"--flash-attn on\" (a bare flag is now a parse error)", joined)
+	}
+}
+
+// TestServerArgsOmitsFlashAttnWhenNotTuned keeps the previous
+// behavior for a model tuned without flash attention: no flag at all
+// (llama-server defaults to "auto").
+func TestServerArgsOmitsFlashAttnWhenNotTuned(t *testing.T) {
+	args := serverArgs("/models/foo.gguf", 12345, modelstore.TuningParams{
+		CtxSize: 4096, BatchSize: 512, Threads: 4, FlashAttn: false,
+	})
+	for _, a := range args {
+		if a == "--flash-attn" {
+			t.Errorf("args = %v, did not expect --flash-attn when tuning.FlashAttn is false", args)
+		}
+	}
+}
 
 // TestRingBufferKeepsOnlyTheTail guards the buffer that captures a
 // started llama-server's stdout/stderr for diagnosing startup failures:

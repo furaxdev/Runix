@@ -129,20 +129,7 @@ func (m *Manager) Start(ctx context.Context, mdl modelstore.Model, tuning models
 		return nil, fmt.Errorf("find free port: %w", err)
 	}
 
-	args := []string{
-		"--model", mdl.File,
-		"--port", strconv.Itoa(port),
-		"--host", "127.0.0.1",
-		"--ctx-size", strconv.Itoa(tuning.CtxSize),
-		"--batch-size", strconv.Itoa(tuning.BatchSize),
-		"--threads", strconv.Itoa(tuning.Threads),
-	}
-	if tuning.NGPULayers != 0 {
-		args = append(args, "--n-gpu-layers", strconv.Itoa(tuning.NGPULayers))
-	}
-	if tuning.FlashAttn {
-		args = append(args, "--flash-attn")
-	}
+	args := serverArgs(mdl.File, port, tuning)
 
 	cmd := exec.CommandContext(context.Background(), m.BinaryPath, args...) // outlives request ctx
 	// Captured so a startup failure (crash, missing shared library, bad
@@ -268,6 +255,35 @@ func lruVictim(instances []*Instance) *Instance {
 		}
 	}
 	return victim
+}
+
+// serverArgs builds the llama-server command-line arguments for loading
+// modelFile on port, tuned per tuning. Split out from Start() so the
+// exact argument list (a frequent source of upstream flag-compat
+// breakage, like --flash-attn's switch to requiring an explicit value)
+// is unit-testable without spawning a real subprocess.
+func serverArgs(modelFile string, port int, tuning modelstore.TuningParams) []string {
+	args := []string{
+		"--model", modelFile,
+		"--port", strconv.Itoa(port),
+		"--host", "127.0.0.1",
+		"--ctx-size", strconv.Itoa(tuning.CtxSize),
+		"--batch-size", strconv.Itoa(tuning.BatchSize),
+		"--threads", strconv.Itoa(tuning.Threads),
+	}
+	if tuning.NGPULayers != 0 {
+		args = append(args, "--n-gpu-layers", strconv.Itoa(tuning.NGPULayers))
+	}
+	if tuning.FlashAttn {
+		// Newer llama-server builds require an explicit value
+		// ("on"/"off"/"auto") for --flash-attn; a bare flag (the old
+		// boolean-flag convention) is now a hard parse error: "error
+		// while handling argument \"--flash-attn\": expected value for
+		// argument" — which killed the process before it could even
+		// open its /health port.
+		args = append(args, "--flash-attn", "on")
+	}
+	return args
 }
 
 func freePort(from int) (int, error) {
