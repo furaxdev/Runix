@@ -16,7 +16,7 @@ if [ -f "$OUT_DIR/screenshots/light/03-conversation-response.png" ]; then
   echo "![conversation](${RAW_BASE}/light/03-conversation-response.png)"
   echo
 fi
-echo "Toutes les captures : [docs/screenshots sur la branche \`demo-screenshots\`](https://github.com/$REPO/tree/demo-screenshots/docs/screenshots)"
+echo "All screenshots: [docs/screenshots on the \`demo-screenshots\` branch](https://github.com/$REPO/tree/demo-screenshots/docs/screenshots)"
 echo
 
 for f in "$OUT_DIR"/terminal/*.txt; do
