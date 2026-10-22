@@ -49,6 +49,7 @@ type Manager struct {
 
 	mu        sync.Mutex
 	instances map[string]*Instance
+	startMu   map[string]*sync.Mutex // per-model lock serializing concurrent cold starts
 }
 
 // NewManager returns a Manager that launches BinaryPath for each model.
@@ -59,7 +60,21 @@ func NewManager(binaryPath string, idleTimeout time.Duration, vramBudgetMB int) 
 		VRAMBudgetMB:  vramBudgetMB,
 		PortRangeFrom: 11540,
 		instances:     make(map[string]*Instance),
+		startMu:       make(map[string]*sync.Mutex),
 	}
+}
+
+// startLock returns the per-model mutex used to serialize concurrent
+// Start calls for the same model name, creating it on first use.
+func (m *Manager) startLock(name string) *sync.Mutex {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	l, ok := m.startMu[name]
+	if !ok {
+		l = &sync.Mutex{}
+		m.startMu[name] = l
+	}
+	return l
 }
 
 // Get returns the running instance for a model name, if any.
@@ -85,6 +100,16 @@ func (m *Manager) List() []*Instance {
 // evicting idle/LRU instances first if the VRAM budget requires it. It
 // blocks until the server's /health endpoint responds or ctx is done.
 func (m *Manager) Start(ctx context.Context, mdl modelstore.Model, tuning modelstore.TuningParams) (*Instance, error) {
+	// Serialize concurrent cold starts for the SAME model name: without
+	// this, two concurrent first requests could both see an empty slot,
+	// both launch a subprocess, and the later map write would orphan
+	// the other's process (never tracked, never stopped, bypassing the
+	// VRAM budget too). Different models still start concurrently since
+	// each gets its own lock.
+	lock := m.startLock(mdl.Name)
+	lock.Lock()
+	defer lock.Unlock()
+
 	m.mu.Lock()
 	if inst, ok := m.instances[mdl.Name]; ok {
 		m.mu.Unlock()
@@ -134,6 +159,7 @@ func (m *Manager) Start(ctx context.Context, mdl modelstore.Model, tuning models
 
 	if err := waitHealthy(ctx, inst.BaseURL); err != nil {
 		_ = cmd.Process.Kill()
+		_ = cmd.Wait() // reap; Kill alone leaves a zombie until the daemon exits
 		return nil, fmt.Errorf("llama-server did not become healthy: %w", err)
 	}
 
@@ -172,7 +198,9 @@ func stopInstance(inst *Instance) error {
 	if inst.cmd == nil || inst.cmd.Process == nil {
 		return nil
 	}
-	return inst.cmd.Process.Kill()
+	err := inst.cmd.Process.Kill()
+	_ = inst.cmd.Wait() // reap; Kill alone leaves a zombie until the daemon exits
+	return err
 }
 
 // EvictIdle stops any instance that has been idle longer than

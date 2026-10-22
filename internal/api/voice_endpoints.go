@@ -22,7 +22,12 @@ type VoiceExtras struct {
 	Synthesizer *voice.Synthesizer // nil disables /voice/synthesize
 	PairHost    string
 	PairPort    int
-	IssueToken  func(deviceName string) (token string, err error)
+	// ListenHost is the host the daemon's HTTP server is actually bound
+	// to (the host part of Config.ListenAddr). Used to refuse issuing a
+	// pairing QR code that a phone could never reach: see
+	// handlePairQRCode.
+	ListenHost string
+	IssueToken func(deviceName string) (token string, err error)
 }
 
 // RegisterVoice wires voice + pairing routes onto mux.
@@ -99,6 +104,20 @@ func (v *VoiceExtras) handleSynthesize(w http.ResponseWriter, r *http.Request) {
 func (v *VoiceExtras) handlePairQRCode(w http.ResponseWriter, r *http.Request) {
 	if v.IssueToken == nil {
 		writeError(w, http.StatusServiceUnavailable, jsonErr("pairing is not configured"))
+		return
+	}
+	// The QR code advertises a LAN address for the phone to connect to,
+	// but if the daemon itself is only bound to loopback, nothing is
+	// actually listening there: issuing the QR code anyway would leave
+	// the phone stuck on a connection that can never succeed. Refuse
+	// with a clear, actionable error instead (FR+EN, since the rest of
+	// this project's user-facing errors are bilingual).
+	if pairing.IsLoopbackHost(v.ListenHost) {
+		writeError(w, http.StatusConflict, jsonErr(
+			"pairing requires the daemon to listen on a LAN-reachable address; "+
+				"set listen_addr to 0.0.0.0:<port> (or a specific LAN IP) in the config and restart / "+
+				"l'appairage nécessite que le démon écoute sur une adresse accessible depuis le réseau local ; "+
+				"réglez listen_addr sur 0.0.0.0:<port> (ou une IP locale précise) dans la config puis redémarrez"))
 		return
 	}
 	var req struct{ DeviceName string }

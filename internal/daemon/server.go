@@ -44,12 +44,13 @@ func (d *Daemon) NewHTTPServer() *http.Server {
 	}
 	perms.RegisterPermissions(mux)
 
-	_, portStr, _ := net.SplitHostPort(d.Config.ListenAddr)
+	listenHost, portStr, _ := net.SplitHostPort(d.Config.ListenAddr)
 	port, _ := strconv.Atoi(portStr)
 	voiceExtras := &api.VoiceExtras{
 		Transcriber: d.Transcriber,
 		Synthesizer: d.Synthesizer,
 		PairPort:    port,
+		ListenHost:  listenHost,
 		IssueToken: func(deviceName string) (string, error) {
 			dev, err := d.Auth.Issue(deviceName)
 			return dev.Token, err

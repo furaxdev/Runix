@@ -9,7 +9,13 @@
 
     <application
         android:label="Runyx"
-        android:theme="@style/Theme.Runyx">
+        android:theme="@style/Theme.Runyx"
+        android:usesCleartextTraffic="true">
+        <!-- The paired PC is always reached over plain http://<lan-ip>:<port>
+             (Runyx has no HTTPS story for a device the user pairs on their
+             own LAN), and Android 9+ blocks cleartext traffic by default,
+             so every request to the PC would otherwise fail outright. -->
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -38,6 +38,21 @@ func (i Info) QRCodePNG(size int) ([]byte, error) {
 	return qrcode.Encode(i.URL(), qrcode.Medium, size)
 }
 
+// IsLoopbackHost reports whether host (as found in a listen address, with
+// no port) only binds the local machine: empty (Go's default "all
+// interfaces" is NOT loopback, so that's handled separately by callers
+// that care), "localhost", or an IP in a loopback range.
+func IsLoopbackHost(host string) bool {
+	if host == "" {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 // LocalIPv4 returns the machine's primary LAN IPv4 address (the one
 // that would be used to reach the default route), for building Info
 // without the caller needing to know it. Returns "127.0.0.1" if none is

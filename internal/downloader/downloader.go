@@ -111,7 +111,7 @@ func Download(ctx context.Context, client *http.Client, url, dest string, opts O
 		}
 	}
 
-	os.Remove(statePath(dest))
+	os.Remove(statePath(part))
 	return os.Rename(part, dest)
 }
 
