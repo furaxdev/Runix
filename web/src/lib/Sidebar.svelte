@@ -97,4 +97,12 @@
     color: var(--text-muted);
     padding: 0.4rem;
   }
+  /* Below ~760px the sidebar + dashboard no longer fit alongside the
+     chat pane (they're fixed-width), so collapse to a single-pane
+     chat view, the same pattern a phone-sized screen needs. */
+  @media (max-width: 760px) {
+    nav {
+      display: none;
+    }
+  }
 </style>

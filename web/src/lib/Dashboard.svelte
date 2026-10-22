@@ -94,4 +94,9 @@
   .muted {
     color: var(--text-muted);
   }
+  @media (max-width: 760px) {
+    aside {
+      display: none;
+    }
+  }
 </style>

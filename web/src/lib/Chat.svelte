@@ -256,6 +256,11 @@
   }
   textarea {
     flex: 1;
+    /* A <textarea>'s intrinsic min-content width (from its default
+       `cols`) otherwise refuses to shrink below it, overflowing the
+       composer and rendering its placeholder text behind the send
+       button on narrow (phone-width) viewports. */
+    min-width: 0;
     border: none;
     background: transparent;
     resize: none;
@@ -265,6 +270,13 @@
     outline: none;
     max-height: 160px;
     padding: 0.4rem 0.2rem;
+    /* rows="1" fixes a single line of height, but a <textarea> wraps
+       long text (including its placeholder) onto multiple lines by
+       default; at phone widths that wrapped second line painted
+       outside the pill-shaped composer instead of being clipped. */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .attach, .send, .mic {
     border: none;

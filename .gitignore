@@ -13,6 +13,11 @@ web/node_modules/
 web/dist/
 web/.svelte-kit/
 
+# scripts/demo/
+scripts/demo/node_modules/
+scripts/demo/package-lock.json
+demo-output/
+
 # android/
 android/.gradle/
 android/build/
