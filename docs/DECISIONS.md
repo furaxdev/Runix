@@ -225,3 +225,69 @@ with a real, curated model catalog.
   `max_tokens` as defense-in-depth: neither fixes a bad generation's
   *content*, but both turn an indefinite hang into a bounded, visible
   failure.
+- **TUI scope and build decisions** (`tui/`): a from-scratch terminal UI
+  for Runyx, in TypeScript, with a hand-built rendering engine (no Ink,
+  React, or blessed). Given the size of this (a terminal rendering
+  engine, markdown renderer, mouse-driven selection engine, and a
+  parallel implementation of every web UI screen), several scope calls
+  were made unilaterally and are recorded here rather than asked about,
+  per the mission brief:
+  - **Runtime**: Bun (`bun build --compile`) is the primary target —
+    already present in this environment, ships a fast startup
+    standalone-executable compiler, and needs no native addons for
+    anything in this engine. A Node `--experimental-sea` fallback path
+    is documented but not built/tested this pass (no second packaging
+    pipeline was set up — see `tui/BUILD.md`).
+  - **Zero runtime dependencies**: true as shipped. Grapheme
+    segmentation uses `Intl.Segmenter` (built into both Bun and Node
+    ≥16, no package). East-Asian/combining-width uses a small
+    hand-written Unicode width table (`tui/src/term/width.ts`) derived
+    from the East Asian Width property, not an npm package — cheaper to
+    own than to audit a third-party one for this scope, and it's one
+    file.
+  - **API contract**: `api/openapi.yaml` documents the subset of
+    `internal/api`'s HTTP surface the TUI actually calls (chat
+    completions, registry, conversations/messages/projects, dashboard,
+    permissions, pull progress) — not the full daemon API. TUI-side
+    TypeScript types in `tui/src/api/types.ts` are hand-written to match
+    it and the existing `web/src/lib/api.ts` field casing exactly
+    (conversations/messages/projects are PascalCase, unmarshaled
+    straight from Go struct fields with no json tags; registry/
+    dashboard/permissions are snake_case). No codegen pipeline connects
+    the YAML to the TS types — keeping them in sync is manual, flagged
+    here as a known gap rather than silently assumed solved.
+  - **Auth**: `internal/daemon/auth.go`'s `LocalBypass` already accepts
+    any loopback request with no token, so the TUI does not implement
+    token acquisition/storage for the common case; it still *sends* a
+    locally-cached pairing token when one exists (for parity with a
+    non-default `LocalBypass: false` deployment), but doesn't block
+    startup on obtaining one.
+  - **Daemon discovery/autostart**: no existing "is it running, what
+    port" mechanism exists in the Go daemon (checked `cmd_serve.go` and
+    `internal/config`) beyond the configured `listen_addr`. The TUI
+    reads the same `config.toml` the daemon reads, probes
+    `GET /healthz`, and if that fails, spawns `runyx serve` itself
+    (detached) and polls until healthy or a timeout, rather than Runyx
+    gaining a new lockfile/PID-discovery protocol in this pass.
+  - **Go-side launch wiring**: bare `runyx` and `runyx tui` exec a
+    sibling `runyx-tui` executable (built from `tui/`) when stdout is a
+    TTY, found next to the `runyx` binary or on `$PATH`; `runyx run
+    <model>` keeps its existing plain chat loop (now with the hang
+    safety net) rather than also redirecting into the TUI, to avoid
+    changing that command's documented/scripted behavior — the TUI's
+    own Chat screen is reached via `runyx tui`, not by overloading
+    `run`. Embedding the compiled TUI binary into the Go binary (so
+    there's only one executable to ship) was considered and rejected
+    for this pass: it would require cross-compiling and `go:embed`-ing
+    three platform-specific TUI binaries from Go's own build, which
+    `scripts/build-ui.sh`'s existing single-platform CI doesn't support
+    yet — left as a follow-up, noted in `FEATURES.md`.
+  - **Testing**: no real-PTY end-to-end test was added. A `node-pty`/
+    similar dependency would contradict the zero-runtime-dependency
+    goal (native bindings) and this environment has no way to validate
+    behavior against the 10 real terminal emulators the brief lists —
+    unit/property tests run against the buffer and parsers directly
+    (feeding synthetic byte sequences in, asserting grid/state out)
+    instead. The terminal compatibility matrix in `FEATURES.md` is
+    protocol-support reasoning (what each terminal is documented to
+    support), not hands-on verification, and is labeled as such.
