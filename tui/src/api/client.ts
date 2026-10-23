@@ -62,6 +62,48 @@ export class RunyxClient {
     return asJSON<RegistryEntry[]>(res);
   }
 
+  /**
+   * Pulls a registry model, reporting NDJSON progress lines as the
+   * server sends them. Resolves once the server sends `done: true`;
+   * rejects with the server's own error message if `error` is set on
+   * that terminal line. signal lets the caller cancel mid-download
+   * (the server's internal/downloader stops mid-chunk and leaves a
+   * resumable .part file -- a later pull of the same model picks the
+   * saved state back up, it doesn't restart from zero).
+   */
+  async pullModel(
+    id: string,
+    onProgress: (p: { downloaded: number; total: number }) => void,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const res = await fetch(this.url("/api/runyx/models/pull"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+      ...(signal ? { signal } : {}),
+    });
+    if (!res.ok || !res.body) {
+      throw new ApiError(res.status, `pull request failed: HTTP ${res.status}`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const chunk = JSON.parse(line);
+        if (chunk.error) throw new Error(chunk.error);
+        if (chunk.done) return;
+        onProgress({ downloaded: chunk.downloaded ?? 0, total: chunk.total ?? 0 });
+      }
+    }
+  }
+
   // --- conversations/messages ---
 
   async listConversations(): Promise<Conversation[]> {

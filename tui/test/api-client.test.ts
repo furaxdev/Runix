@@ -128,3 +128,41 @@ describe("RunyxClient approvals", () => {
     await expect(client.decideApproval("a1", "wrong", true)).rejects.toBeInstanceOf(ApiError);
   });
 });
+
+describe("RunyxClient pullModel", () => {
+  function ndjsonResponse(lines: object[]): Response {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const line of lines) controller.enqueue(encoder.encode(JSON.stringify(line) + "\n"));
+        controller.close();
+      },
+    });
+    return new Response(body, { status: 200 });
+  }
+
+  test("reports progress and resolves on done:true", async () => {
+    globalThis.fetch = (async () =>
+      ndjsonResponse([
+        { downloaded: 1000, total: 4000, done: false },
+        { downloaded: 4000, total: 4000, done: false },
+        { done: true, name: "qwen" },
+      ])) as unknown as typeof fetch;
+    const client = new RunyxClient("http://127.0.0.1:11535");
+    const progress: number[] = [];
+    await client.pullModel("qwen-id", (p) => progress.push(p.downloaded));
+    expect(progress).toEqual([1000, 4000]);
+  });
+
+  test("rejects when the final NDJSON line carries an error", async () => {
+    globalThis.fetch = (async () => ndjsonResponse([{ error: "disk full", done: true }])) as unknown as typeof fetch;
+    const client = new RunyxClient("http://127.0.0.1:11535");
+    await expect(client.pullModel("qwen-id", () => {})).rejects.toThrow("disk full");
+  });
+
+  test("throws ApiError on a non-OK response", async () => {
+    globalThis.fetch = (async () => new Response("nope", { status: 404 })) as unknown as typeof fetch;
+    const client = new RunyxClient("http://127.0.0.1:11535");
+    await expect(client.pullModel("qwen-id", () => {})).rejects.toBeInstanceOf(ApiError);
+  });
+});
