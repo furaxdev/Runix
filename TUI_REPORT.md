@@ -103,19 +103,28 @@ only what is true right now.
   synthetic `RenderedLine[]`, but the Chat screen does not yet wire
   mouse drag events to it (no click-to-select, no double/triple-click,
   no Copy button) -- it currently only scrolls with Up/Down.
-- **T4 (packaging)**: no `--dump-frame` CLI flag (though
-  `screenToSVG` exists from T0), no Go-side `runyx`/`runyx tui`
-  sibling-executable launch wiring (documented as a decision in
-  `docs/DECISIONS.md` but not implemented), no cross-platform release
-  builds beyond the existing `bun build --compile` targets already in
-  `package.json`, no terminal-compatibility hands-on verification (the
-  matrix that exists is protocol-support reasoning, not tested against
-  real terminal emulators), no `THIRD_PARTY.md` entry for the TUI's
-  dependencies (it has none at runtime, but this should still be
-  recorded explicitly).
+- **T4, done**: `runyx tui` / bare `runyx` on a real terminal now exec
+  the sibling `runyx-tui` binary (`cmd/runyx/cmd_tui.go`, 5 new Go
+  tests); `--dump-frame <path>` renders the Ctrl+K palette to SVG
+  (scoped down from every screen -- see `docs/DECISIONS.md` for why);
+  `THIRD_PARTY.md` has a `tui/` section (no runtime dependencies).
+- **T4, still not done**: real cross-platform release builds (beyond
+  the `bun build --compile` targets already in `package.json`) and
+  hands-on terminal-compatibility verification (the matrix that exists
+  is protocol-support reasoning, not tested against real terminal
+  emulators) -- both need real target machines/terminals this sandbox
+  doesn't have. `--dump-frame` only covers the palette, not
+  Chat/Dashboard/Models/Permissions/Approvals/Pairing, whose draw
+  functions are entangled with their own async network loads.
 
 ## Captures
 
-None yet -- `--dump-frame` (T4) is what would produce these, and it
-isn't built. The Go daemon's own demo (`demo.yml`, screenshots on the
+One: `tui --dump-frame <path>` renders the Ctrl+K palette overlay to
+SVG and was smoke-tested (produces a real SVG with the expected box/
+text content, not just a blank background -- an earlier attempt was
+silently blank because `screenToSVG` reads the front buffer, which
+only updates via `fullRepaint()`/`diff()`, not the back buffer `draw`
+functions write to directly). Every other screen still needs its draw
+logic decoupled from its async load before it can be dumped the same
+way. The Go daemon's own demo (`demo.yml`, screenshots on the
 `demo-screenshots` branch) covers the *web* UI only, not this TUI.

@@ -450,3 +450,37 @@ technique the mascot's sprite renderer uses (§1 of
 terminal. Not yet done: the Android app's own QR *scanning* path
 (decoding a photo) is unrelated and already existed; this only adds a
 second way to *display* the code.
+
+## T4: Go-side launch wiring and --dump-frame, scoped down from the original plan
+
+- `cmd/runyx/cmd_tui.go`: bare `runyx` with no arguments, on a real
+  terminal (checked via `os.Stdout.Stat()`'s `ModeCharDevice` bit --
+  no extra dependency for this), and the new explicit `runyx tui`
+  subcommand both exec the sibling `runyx-tui` binary (found next to
+  the running `runyx` executable, then on `$PATH`), inheriting stdio.
+  `runyx run <model>` is untouched, per the decision already recorded
+  above. A non-zero exit from the child is carried back as a typed
+  `ExitCodeError` rather than `cmdTUI` calling `os.Exit` itself --
+  doing so in-process would kill the test binary too, making that path
+  untestable; `main()` is the only place that calls `os.Exit`.
+- `--dump-frame <path>`: renders one static frame to SVG (via the
+  existing `screenToSVG`, built in T0) and exits, for visual
+  regression without a live terminal. Scoped down from "every screen"
+  to just the Ctrl+K palette: every other screen's `draw` closure is
+  entangled with its own network-fetching async load (Chat even blocks
+  on `ensureConversation` before `setDrawFn` is ever called), and
+  decoupling each one is real work left for when per-screen snapshot
+  tests are actually needed (e.g. alongside the mascot's own per-state
+  CI snapshots). Caught a real bug while wiring this up: `screenToSVG`
+  reads the *front* buffer, but `drawPalette` (like every draw
+  function) only writes the *back* buffer -- front only updates via
+  `diff()`/`fullRepaint()`. The first attempt produced an SVG with
+  nothing but the background rect; fixed by calling
+  `screen.fullRepaint("truecolor")` before converting, which is now
+  the documented pattern for any future non-interactive render.
+- Not done, and not attempted here: actual cross-platform release
+  builds (beyond the `bun build --compile` targets already in
+  `tui/package.json`), and hands-on verification against real terminal
+  emulators -- both need real target machines/terminals this sandbox
+  doesn't have. `THIRD_PARTY.md` gained a `tui/` section (no runtime
+  dependencies at all, by design).

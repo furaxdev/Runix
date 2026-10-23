@@ -6,6 +6,7 @@
 import type { Terminal } from "./term/terminal.js";
 import type { Screen } from "./term/buffer.js";
 import type { Rect } from "./layout/flex.js";
+import type { Theme } from "./term/color.js";
 import { drawBox } from "./widgets/box.js";
 import { drawLine } from "./widgets/text.js";
 import type { RunyxClient } from "./api/client.js";
@@ -23,7 +24,7 @@ interface PaletteCommand {
   label: string;
 }
 
-const COMMANDS: PaletteCommand[] = [
+export const COMMANDS: PaletteCommand[] = [
   { id: "chat", label: "Chat" },
   { id: "dashboard", label: "Dashboard" },
   { id: "models", label: "Models" },
@@ -31,6 +32,40 @@ const COMMANDS: PaletteCommand[] = [
   { id: "approvals", label: "Approvals" },
   { id: "pairing", label: "Pair a device" },
 ];
+
+function filterCommands(query: string): PaletteCommand[] {
+  const q = query.toLowerCase();
+  return COMMANDS.filter((c) => c.label.toLowerCase().includes(q));
+}
+
+/**
+ * Draws the Ctrl+K palette overlay for a given query/selection,
+ * independent of any live Terminal/event loop -- exported so
+ * `--dump-frame` (see main.ts) can render a representative static
+ * frame of the TUI without a running daemon, the same screen-rendering
+ * code the interactive palette below actually uses.
+ */
+export function drawPalette(screen: Screen, theme: Theme, query: string, selected: number): void {
+  const width = Math.min(50, screen.width - 4);
+  const height = Math.min(10, screen.height - 4);
+  const rect: Rect = {
+    row: Math.floor((screen.height - height) / 2),
+    col: Math.floor((screen.width - width) / 2),
+    width,
+    height,
+  };
+  const inner = drawBox(screen, rect, { title: "Go to...", borderFg: theme.accent, fg: theme.accent, bg: theme.surfaceElevated });
+  drawLine(screen, inner, inner.row, `> ${query}`, { fg: theme.text, bg: theme.surfaceElevated });
+  const items = filterCommands(query);
+  items.forEach((cmd, i) => {
+    const row = inner.row + 2 + i;
+    if (row >= inner.row + inner.height) return;
+    drawLine(screen, inner, row, cmd.label, {
+      fg: i === selected ? theme.accentContrast : theme.text,
+      bg: i === selected ? theme.accent : theme.surfaceElevated,
+    });
+  });
+}
 
 /**
  * Shows the Ctrl+K palette and waits for the user to pick a screen, or
@@ -42,31 +77,11 @@ async function runPalette(terminal: Terminal): Promise<ScreenName | null> {
   let selected = 0;
 
   function filtered(): PaletteCommand[] {
-    const q = query.toLowerCase();
-    return COMMANDS.filter((c) => c.label.toLowerCase().includes(q));
+    return filterCommands(query);
   }
 
   function draw(screen: Screen): void {
-    const theme = terminal.theme;
-    const width = Math.min(50, screen.width - 4);
-    const height = Math.min(10, screen.height - 4);
-    const rect: Rect = {
-      row: Math.floor((screen.height - height) / 2),
-      col: Math.floor((screen.width - width) / 2),
-      width,
-      height,
-    };
-    const inner = drawBox(screen, rect, { title: "Go to...", borderFg: theme.accent, fg: theme.accent, bg: theme.surfaceElevated });
-    drawLine(screen, inner, inner.row, `> ${query}`, { fg: theme.text, bg: theme.surfaceElevated });
-    const items = filtered();
-    items.forEach((cmd, i) => {
-      const row = inner.row + 2 + i;
-      if (row >= inner.row + inner.height) return;
-      drawLine(screen, inner, row, cmd.label, {
-        fg: i === selected ? theme.accentContrast : theme.text,
-        bg: i === selected ? theme.accent : theme.surfaceElevated,
-      });
-    });
+    drawPalette(screen, terminal.theme, query, selected);
   }
 
   terminal.setDrawFn(draw);

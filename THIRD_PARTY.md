@@ -39,6 +39,20 @@ and their licenses, checked for compatibility with MIT distribution.
 | svelte-check | MIT |
 | [lucide-svelte](https://github.com/lucide-icons/lucide) | ISC | The icon set used throughout the UI (no emoji) — its SVG icon components ARE bundled into the shipped build output, unlike the rest of this table. |
 
+## Terminal UI (`tui/`)
+
+| Package | License |
+|---|---|
+| typescript (dev only — typechecking, not bundled) | Apache-2.0 |
+| @types/node, bun-types (dev only) | MIT |
+
+No other dependency, runtime or dev: the TUI's rendering engine
+(terminal buffer/diff, ANSI/SGR output, input parsing, layout,
+widgets, markdown rendering, selection/clipboard) and its daemon
+client are all first-party code, by design (see `docs/DECISIONS.md`).
+`bun build --compile` produces a single self-contained executable per
+platform with nothing else to vendor or license.
+
 No code from Ollama was copied or consulted — the `/api/*` compatibility
 layer in `internal/api` is implemented purely from Ollama's public API
 documentation (https://github.com/ollama/ollama/blob/main/docs/api.md).

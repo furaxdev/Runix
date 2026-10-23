@@ -9,6 +9,14 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
+		// Bare `runyx` on a real terminal launches the TUI, the same way
+		// `git` with no args prints help but an interactive shell tool
+		// would rather hand you something to look at. Piped/redirected
+		// stdout (scripts, CI) keeps the old behavior: usage + exit 1.
+		if isStdoutTTY() {
+			exitOnError(cmdTUI(nil))
+			return
+		}
 		printUsage()
 		os.Exit(1)
 	}
@@ -22,6 +30,8 @@ func main() {
 		err = cmdVersion(args)
 	case "serve":
 		err = cmdServe(args)
+	case "tui":
+		err = cmdTUI(args)
 	case "doctor":
 		err = cmdDoctor(args)
 	case "recommend":
@@ -53,10 +63,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "runyx: %v\n", err)
-		os.Exit(1)
+	exitOnError(err)
+}
+
+// exitOnError exits 1 after printing err, unless err is an
+// ExitCodeError (from execing a sibling binary like runyx-tui), in
+// which case it propagates that exact exit code. A nil err is a no-op.
+func exitOnError(err error) {
+	if err == nil {
+		return
 	}
+	if exitErr, ok := err.(ExitCodeError); ok {
+		os.Exit(exitErr.Code)
+	}
+	fmt.Fprintf(os.Stderr, "runyx: %v\n", err)
+	os.Exit(1)
 }
 
 func printUsage() {
@@ -64,6 +85,8 @@ func printUsage() {
 
 Usage:
   runyx version              Print version info
+  runyx                      Launch the TUI (if on a real terminal; same as 'runyx tui')
+  runyx tui                  Launch the terminal UI
   runyx serve                Run the daemon in the foreground
   runyx doctor                Detect CPU/RAM/GPU and backend availability
   runyx recommend              Suggest models that fit this machine
