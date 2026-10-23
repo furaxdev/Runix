@@ -189,14 +189,14 @@ jobs:
           probe() {
             local label="$1" url="$2" body="$3"
             echo "=== $label ($url) ===" | tee -a "$OUT"
-            local raw
-            raw="$(mktemp)"
             local start_s end_s
             start_s=$(date +%s.%N)
-            curl -N -sS -m 90 -X POST "$url" -H "Content-Type: application/json" -d "$body" > "$raw" 2>>"$OUT" || true
-            end_s=$(date +%s.%N)
 
             local first_token_s="" event_count=0 done_seen=0 finish_reason="<none>"
+            # Read curl's output as it arrives (process substitution, not
+            # "curl > file; read file" -- that would only timestamp lines
+            # after the whole request already finished, making "time to
+            # first token" silently equal "total time" on every run).
             while IFS= read -r line; do
               case "$line" in
                 "data: [DONE]")
@@ -204,19 +204,22 @@ jobs:
                   ;;
                 data:\ *)
                   data="${line#data: }"
-                  if [ -z "$first_token_s" ]; then
-                    first_token_s=$(date +%s.%N)
-                  fi
+                  if [ -z "$first_token_s" ]; then first_token_s=$(date +%s.%N); fi
                   event_count=$((event_count + 1))
                   fr=$(printf '%s' "$data" | grep -o '"finish_reason":"[a-z_]*"' || true)
                   [ -n "$fr" ] && finish_reason="$fr"
                   ;;
+                *'"done":true'*)
+                  # Ollama-style NDJSON terminal line, for /api/chat.
+                  done_seen=1
+                  ;;
+                *'"message"'*)
+                  if [ -z "$first_token_s" ]; then first_token_s=$(date +%s.%N); fi
+                  event_count=$((event_count + 1))
+                  ;;
               esac
-            done < "$raw"
-            # Ollama-style NDJSON ("done":true) lines, for /api/chat.
-            if grep -q '"done":true' "$raw" 2>/dev/null; then
-              done_seen=1
-            fi
+            done < <(curl -N -sS -m 90 -X POST "$url" -H "Content-Type: application/json" -d "$body" 2>>"$OUT")
+            end_s=$(date +%s.%N)
             if [ -z "$first_token_s" ]; then first_token_s="$end_s"; fi
 
             local ttft total tps
@@ -232,7 +235,6 @@ jobs:
               echo "stream end signal seen ([DONE] or done:true): $done_seen"
               echo
             } | tee -a "$OUT"
-            rm -f "$raw"
           }
 
           probe "OpenAI-compatible /v1/chat/completions (max_tokens=32, temp=0)" \
