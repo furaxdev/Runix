@@ -31,6 +31,14 @@ jobs:
       # runtime, so the bug is CPU-specific). See docs/DECISIONS.md.
       # Bump this deliberately (not blindly) if it needs updating.
       RUNYX_LLAMA_CPP_TAG: "b11836"
+      # The pin alone didn't fix it: b11836 hit the exact same bug on
+      # another AMD EPYC 7763 runner, so it isn't one bad build. Also
+      # force llama.cpp's own loader down to the lowest-common-
+      # denominator CPU kernel (see pruneToBaselineCPUKernel in
+      # internal/backend/fetch.go) so the higher-scoring, apparently
+      # broken-on-this-CPU variant never gets picked at all, trading
+      # its speed for correctness — acceptable for a 0.5B demo model.
+      RUNYX_LLAMA_CPP_SAFE_CPU_KERNEL: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -73,18 +81,19 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.RUNYX_HOME }}/data/backends
-          # v3: the v1->v2 bump alone wasn't enough — v2's first run hit
-          # a second extraction bug (symlinked libraries skipped, see
-          # extractServerBinaryFromTarGz) and cached ITS broken output
-          # too, for the exact same "a hit always skips re-extracting"
-          # reason. Ensure() only checks that the server binary file
-          # exists before trusting a cached release dir ("already
-          # cached" in internal/backend/fetch.go), never that its
-          # sibling shared libraries extracted correctly, so any
-          # extraction bug present the first time a given key is
-          # populated stays cached under that key forever. Bump this
-          # key again if a future extraction fix needs to invalidate it.
-          key: runyx-demo-backend-linux-amd64-v3
+          # v4: v3's first-ever save (this key had never been hit before)
+          # happened on the very run that added
+          # RUNYX_LLAMA_CPP_SAFE_CPU_KERNEL — before that env var existed
+          # — so it cached an unpruned extraction with the higher-scoring
+          # (apparently broken on this CI's AMD EPYC runners) CPU kernel
+          # still present. Ensure() only checks that the server binary
+          # file exists before trusting a cached release dir ("already
+          # cached" in internal/backend/fetch.go) — it never re-applies
+          # pruneToBaselineCPUKernel to something already on disk — so
+          # bumping the key is the only way to force one fresh,
+          # actually-pruned extraction. Bump again if this prune logic
+          # itself changes.
+          key: runyx-demo-backend-linux-amd64-v4
 
       # Caches the pulled GGUF model (and its models.json registry
       # sidecar) across runs. `runyx run`/`pull` below check `runyx

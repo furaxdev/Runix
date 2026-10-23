@@ -200,6 +200,22 @@ with a real, curated model catalog.
   "latest" resolution and the nightly-tag indirection. `demo.yml` pins
   it (currently `b11836`) for CI reproducibility; revisit this if/when
   upstream ships an actual stable channel.
+  **Update**: pinning alone didn't fix it — a later run on build
+  `b11836` hit the exact same gibberish on another AMD EPYC 7763
+  runner, so it isn't specific to one bad build; something about the
+  kernel ggml's loader picks for that CPU is wrong, and llama.cpp has
+  no supported env var to force a different one (checked
+  `ggml-backend-reg.cpp` and `ggml-cpu.cpp` directly — selection is
+  `ggml_backend_load_best()` scoring each `libggml-cpu-*.so` by
+  detected CPUID with no override hook). Worked around it instead:
+  `internal/backend/fetch.go`'s `pruneToBaselineCPUKernel()`, gated by
+  the `RUNYX_LLAMA_CPP_SAFE_CPU_KERNEL` env var, deletes every
+  microarchitecture-specific `libggml-cpu-*.so` after extraction except
+  the baseline (`libggml-cpu-x64.so` / `-arm64.so`), so the loader can't
+  pick anything but the baseline — trading its speed for correctness.
+  Off by default (normal `runyx` keeps full CPU-optimized performance);
+  `demo.yml` opts in, trading speed for a 0.5B demo model where it
+  doesn't matter.
 - **Chat CLI hang safety net** (`cmd/runyx/cmd_run.go`): the interactive
   `runyx run` chat loop had no HTTP client timeout and no cap on reply
   length, so a runaway generation (as above) hung the CLI forever with

@@ -183,7 +183,76 @@ func (f *Fetcher) Ensure(ctx context.Context, info hwdetect.Info, onProgress dow
 			return "", fmt.Errorf("chmod server binary: %w", err)
 		}
 	}
+	if strings.TrimSpace(os.Getenv(SafeCPUKernelEnv)) != "" {
+		pruneToBaselineCPUKernel(destDir, info)
+	}
 	return binPath, nil
+}
+
+// SafeCPUKernelEnv, when set to a non-empty value, makes Ensure() delete
+// every per-microarchitecture ggml-cpu kernel it just extracted except
+// the baseline one, forcing llama.cpp's own runtime loader
+// (ggml_backend_load_best, which scores each libggml-cpu-*.so by
+// detected CPUID and keeps the highest scorer) to fall back to it
+// instead of whatever it would otherwise have picked as "best".
+//
+// This exists because of a real, reproduced bug: the exact same model
+// and llama.cpp build gave a coherent reply on an Intel Xeon runner and
+// endless incoherent multilingual output — never emitting a stop token —
+// on a GitHub-hosted AMD EPYC 7763 runner, across two different llama.cpp
+// release tags (b11669 and b11836), so it isn't one bad build; something
+// about the microarchitecture-specific kernel ggml selects for that CPU
+// is wrong. llama.cpp has no supported env var to force a specific
+// variant (checked its CPU-dispatch source directly), so this works
+// around it the only way available: remove the higher-scoring variants
+// so they can't be picked, trading their speed for the baseline kernel's
+// (much better tested, lowest common denominator) correctness. Off by
+// default — normal `runyx` keeps full performance; demo.yml opts in for
+// CI determinism regardless of which CPU GitHub assigns the runner.
+const SafeCPUKernelEnv = "RUNYX_LLAMA_CPP_SAFE_CPU_KERNEL"
+
+// baselineCPUKernelName is the libggml-cpu-<name>.so llama.cpp ships as
+// its no-special-instructions fallback for a given arch — present
+// alongside the microarchitecture-specific variants only in the
+// dynamic-dispatch Linux builds (the ones this prune applies to).
+func baselineCPUKernelName(arch string) string {
+	switch arch {
+	case "amd64":
+		return "libggml-cpu-x64.so"
+	case "arm64":
+		return "libggml-cpu-arm64.so"
+	default:
+		return ""
+	}
+}
+
+// pruneToBaselineCPUKernel removes every libggml-cpu-<variant>.so file
+// in dir except the baseline for info.Arch. A no-op (never an error) if
+// the baseline itself isn't present — e.g. on macOS or Windows builds,
+// which don't split ggml-cpu into multiple dynamically-dispatched
+// variants the way the Linux build does, so there's nothing to prune.
+func pruneToBaselineCPUKernel(dir string, info hwdetect.Info) {
+	baseline := baselineCPUKernelName(info.Arch)
+	if baseline == "" {
+		return
+	}
+	if _, err := os.Stat(filepath.Join(dir, baseline)); err != nil {
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if name == baseline {
+			continue
+		}
+		if !strings.HasPrefix(name, "libggml-cpu-") || !strings.HasSuffix(name, ".so") {
+			continue
+		}
+		_ = os.Remove(filepath.Join(dir, name))
+	}
 }
 
 // anyCachedBinary looks for a previously downloaded llama-server under

@@ -337,3 +337,127 @@ func writeTestTarGzWithSymlinks(t *testing.T, path string, files, symlinks map[s
 		t.Fatalf("close gzip writer: %v", err)
 	}
 }
+
+// TestPruneToBaselineCPUKernelKeepsOnlyBaseline guards the AMD EPYC
+// workaround: with the feature on, every microarchitecture-specific
+// ggml-cpu variant must be removed, keeping only the baseline
+// llama.cpp's own loader falls back to when no higher-scoring variant
+// is present.
+func TestPruneToBaselineCPUKernelKeepsOnlyBaseline(t *testing.T) {
+	dir := t.TempDir()
+	files := []string{
+		"libggml-cpu-x64.so", // baseline — must survive
+		"libggml-cpu-haswell.so",
+		"libggml-cpu-zen4.so",
+		"libggml-cpu-skylakex.so",
+		"llama-server",       // not a ggml-cpu file — must survive
+		"libllama-common.so", // not a ggml-cpu file — must survive
+	}
+	for _, f := range files {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte("x"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", f, err)
+		}
+	}
+
+	pruneToBaselineCPUKernel(dir, hwdetect.Info{Arch: "amd64"})
+
+	want := map[string]bool{
+		"libggml-cpu-x64.so":      true,
+		"llama-server":            true,
+		"libllama-common.so":      true,
+		"libggml-cpu-haswell.so":  false,
+		"libggml-cpu-zen4.so":     false,
+		"libggml-cpu-skylakex.so": false,
+	}
+	for name, shouldExist := range want {
+		_, err := os.Stat(filepath.Join(dir, name))
+		exists := err == nil
+		if exists != shouldExist {
+			t.Errorf("%s: exists=%v, want %v", name, exists, shouldExist)
+		}
+	}
+}
+
+// TestPruneToBaselineCPUKernelNoOpWithoutBaseline guards against
+// pruning everything when the baseline itself isn't present (e.g. a
+// build that doesn't split ggml-cpu into variants at all) — better to
+// leave every file alone than risk deleting the only kernel available.
+func TestPruneToBaselineCPUKernelNoOpWithoutBaseline(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "libggml-cpu-haswell.so"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	pruneToBaselineCPUKernel(dir, hwdetect.Info{Arch: "amd64"})
+
+	if _, err := os.Stat(filepath.Join(dir, "libggml-cpu-haswell.so")); err != nil {
+		t.Errorf("expected libggml-cpu-haswell.so to survive when no baseline is present: %v", err)
+	}
+}
+
+// TestEnsurePrunesCPUKernelsOnlyWhenEnvSet is an end-to-end check that
+// Ensure() leaves every extracted ggml-cpu variant alone by default,
+// and prunes down to the baseline only when SafeCPUKernelEnv is set —
+// normal `runyx` keeps full CPU-optimized performance unchanged.
+func TestEnsurePrunesCPUKernelsOnlyWhenEnvSet(t *testing.T) {
+	archive := func(dir string) string {
+		path := filepath.Join(dir, "llama-b1-bin-ubuntu-x64.tar.gz")
+		writeTestTarGz(t, path, map[string]string{
+			"llama-b1/" + serverBinaryName():  "fake server binary",
+			"llama-b1/libggml-cpu-x64.so":     "baseline",
+			"llama-b1/libggml-cpu-haswell.so": "higher-scoring, possibly buggy on some CPUs",
+		})
+		return path
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/latest", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(ghRelease{TagName: "b1", Assets: []ghAsset{{Name: "llama-b1-bin-ubuntu-x64.tar.gz"}}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	archPath := archive(t.TempDir())
+	mux.HandleFunc("/dl/llama-b1-bin-ubuntu-x64.tar.gz", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, archPath)
+	})
+	mux.HandleFunc("/latest2", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(ghRelease{
+			TagName: "b1",
+			Assets:  []ghAsset{{Name: "llama-b1-bin-ubuntu-x64.tar.gz", BrowserDownloadURL: srv.URL + "/dl/llama-b1-bin-ubuntu-x64.tar.gz"}},
+		})
+	})
+
+	old := ReleasesAPI
+	ReleasesAPI = srv.URL + "/latest2"
+	defer func() { ReleasesAPI = old }()
+
+	info := hwdetect.Info{OS: "linux", Arch: "amd64"}
+
+	t.Run("default: nothing pruned", func(t *testing.T) {
+		f := NewFetcher(t.TempDir())
+		binPath, err := f.Ensure(context.Background(), info, nil)
+		if err != nil {
+			t.Fatalf("Ensure: %v", err)
+		}
+		destDir := filepath.Dir(binPath)
+		if _, err := os.Stat(filepath.Join(destDir, "libggml-cpu-haswell.so")); err != nil {
+			t.Errorf("expected libggml-cpu-haswell.so to survive by default: %v", err)
+		}
+	})
+
+	t.Run("env set: pruned to baseline", func(t *testing.T) {
+		t.Setenv(SafeCPUKernelEnv, "1")
+		f := NewFetcher(t.TempDir())
+		binPath, err := f.Ensure(context.Background(), info, nil)
+		if err != nil {
+			t.Fatalf("Ensure: %v", err)
+		}
+		destDir := filepath.Dir(binPath)
+		if _, err := os.Stat(filepath.Join(destDir, "libggml-cpu-haswell.so")); !os.IsNotExist(err) {
+			t.Errorf("expected libggml-cpu-haswell.so to be pruned when %s is set", SafeCPUKernelEnv)
+		}
+		if _, err := os.Stat(filepath.Join(destDir, "libggml-cpu-x64.so")); err != nil {
+			t.Errorf("expected the baseline libggml-cpu-x64.so to survive: %v", err)
+		}
+	})
+}
