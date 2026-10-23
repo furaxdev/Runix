@@ -94,6 +94,14 @@ export interface ChatMessageIn {
   content: string;
 }
 
+// Mirrors the JSON body of POST /api/runyx/pairing/qrcode-matrix: the
+// same QR code the web UI renders as a PNG `<img>`, as a raw module
+// grid (true = dark module) for a client with no image decoder.
+export interface PairingQR {
+  url: string;
+  modules: boolean[][];
+}
+
 // Mirrors internal/approval.Request (Go). A pending request awaiting a
 // human decision from whichever client is attached (TUI, web, or a
 // paired device). Hash binds the decision to this exact content.

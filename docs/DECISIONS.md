@@ -429,3 +429,24 @@ UI deciding, in a second, later HTTP request.
   Control's device identity threaded through `Resolve`, which is C2
   scope in `docs/RUNYX_CODE.md`, not part of finishing this pending
   item.
+
+## TUI pairing screen reuses the Go QR encoder's raw module grid, not a reimplementation
+
+The web UI renders pairing as a PNG `<img>` from
+`GET/POST /api/runyx/pairing/qrcode`. The TUI has no image decoder, and
+hand-rolling QR encoding (Reed-Solomon error correction, mode/version
+selection) in TypeScript would duplicate -- and risk subtly
+mis-duplicating -- logic `internal/pairing` already gets from a real,
+tested library (`github.com/skip2/go-qrcode`). Instead:
+`pairing.Info.QRCodeModules()` calls the same library's `Bitmap()`
+method to get the raw `[][]bool` module grid, and a new endpoint
+(`POST /api/runyx/pairing/qrcode-matrix`) returns `{url, modules}` as
+JSON -- same token issuance and loopback-host refusal as the PNG
+route (both now share `buildPairingInfo`, so they can't drift out of
+sync). The TUI's `drawQRCode` renders two module rows per terminal row
+with unicode half-blocks (▀▄█), the same "2 pixels per character"
+technique the mascot's sprite renderer uses (§1 of
+`docs/RUNYX_CODE.md`) -- a QR code is just another bitmap to a
+terminal. Not yet done: the Android app's own QR *scanning* path
+(decoding a photo) is unrelated and already existed; this only adds a
+second way to *display* the code.

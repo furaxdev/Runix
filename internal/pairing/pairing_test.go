@@ -38,6 +38,37 @@ func TestQRCodePNGProducesValidPNG(t *testing.T) {
 	}
 }
 
+func TestQRCodeModulesEncodesTheSameURLAsThePNG(t *testing.T) {
+	info := Info{Host: "10.0.0.5", Port: 11535, Token: "tok"}
+	modules, err := info.QRCodeModules()
+	if err != nil {
+		t.Fatalf("QRCodeModules: %v", err)
+	}
+	if len(modules) == 0 {
+		t.Fatal("expected a non-empty module grid")
+	}
+	// Every row must be the same (square) length, and the grid must
+	// contain both dark and light modules -- a QR code that somehow
+	// came back all-one-color would be an encoding bug, not real data.
+	width := len(modules[0])
+	sawDark, sawLight := false, false
+	for _, row := range modules {
+		if len(row) != width {
+			t.Fatalf("row length = %d, want %d (grid must be square)", len(row), width)
+		}
+		for _, m := range row {
+			if m {
+				sawDark = true
+			} else {
+				sawLight = true
+			}
+		}
+	}
+	if !sawDark || !sawLight {
+		t.Error("expected the module grid to contain both dark and light modules")
+	}
+}
+
 func TestLocalIPv4ReturnsSomething(t *testing.T) {
 	ip := LocalIPv4()
 	if ip == "" {

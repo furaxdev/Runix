@@ -12,6 +12,7 @@ import type {
   DashboardStats,
   Message,
   ModelEntry,
+  PairingQR,
   PermissionsSnapshot,
   RegistryEntry,
 } from "./types.js";
@@ -150,6 +151,15 @@ export class RunyxClient {
   async revokeDevice(id: string): Promise<void> {
     const res = await fetch(this.url(`/api/runyx/permissions/devices/${id}`), { method: "DELETE" });
     if (!res.ok) throw new ApiError(res.status, await res.text().catch(() => `HTTP ${res.status}`));
+  }
+
+  async pairingQRCode(deviceName: string): Promise<PairingQR> {
+    const res = await fetch(this.url("/api/runyx/pairing/qrcode-matrix"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ DeviceName: deviceName }),
+    });
+    return asJSON<PairingQR>(res);
   }
 
   // --- pending approvals (shell commands today; Runyx Code's tools later) ---

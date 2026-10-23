@@ -35,6 +35,7 @@ func (v *VoiceExtras) RegisterVoice(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/runyx/voice/transcribe", v.handleTranscribe)
 	mux.HandleFunc("POST /api/runyx/voice/synthesize", v.handleSynthesize)
 	mux.HandleFunc("POST /api/runyx/pairing/qrcode", v.handlePairQRCode)
+	mux.HandleFunc("POST /api/runyx/pairing/qrcode-matrix", v.handlePairQRCodeMatrix)
 }
 
 func (v *VoiceExtras) handleTranscribe(w http.ResponseWriter, r *http.Request) {
@@ -101,21 +102,26 @@ func (v *VoiceExtras) handleSynthesize(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
-func (v *VoiceExtras) handlePairQRCode(w http.ResponseWriter, r *http.Request) {
+// buildPairingInfo validates that pairing is possible (configured, and
+// the daemon is on a LAN-reachable address) and issues a fresh
+// one-time device token. Shared by the PNG and raw-module endpoints so
+// both actually hand out a real, usable token rather than one of them
+// drifting out of sync with the other. The returned status is the
+// HTTP status the caller should use if err is non-nil; it's
+// meaningless when err is nil.
+func (v *VoiceExtras) buildPairingInfo(r *http.Request) (pairing.Info, int, error) {
 	if v.IssueToken == nil {
-		writeError(w, http.StatusServiceUnavailable, jsonErr("pairing is not configured"))
-		return
+		return pairing.Info{}, http.StatusServiceUnavailable, jsonErr("pairing is not configured")
 	}
 	// The QR code advertises a LAN address for the phone to connect to,
 	// but if the daemon itself is only bound to loopback, nothing is
-	// actually listening there: issuing the QR code anyway would leave
-	// the phone stuck on a connection that can never succeed. Refuse
-	// with a clear, actionable error instead.
+	// actually listening there: issuing it anyway would leave the phone
+	// stuck on a connection that can never succeed. Refuse with a clear,
+	// actionable error instead.
 	if pairing.IsLoopbackHost(v.ListenHost) {
-		writeError(w, http.StatusConflict, jsonErr(
-			"pairing requires the daemon to listen on a LAN-reachable address; "+
-				"set listen_addr to 0.0.0.0:<port> (or a specific LAN IP) in the config and restart"))
-		return
+		return pairing.Info{}, http.StatusConflict, jsonErr(
+			"pairing requires the daemon to listen on a LAN-reachable address; " +
+				"set listen_addr to 0.0.0.0:<port> (or a specific LAN IP) in the config and restart")
 	}
 	var req struct{ DeviceName string }
 	decodeJSONBody(r, &req)
@@ -124,14 +130,21 @@ func (v *VoiceExtras) handlePairQRCode(w http.ResponseWriter, r *http.Request) {
 	}
 	token, err := v.IssueToken(req.DeviceName)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
+		return pairing.Info{}, http.StatusInternalServerError, err
 	}
 	host := v.PairHost
 	if host == "" {
 		host = pairing.LocalIPv4()
 	}
-	info := pairing.Info{Host: host, Port: v.PairPort, Token: token}
+	return pairing.Info{Host: host, Port: v.PairPort, Token: token}, 0, nil
+}
+
+func (v *VoiceExtras) handlePairQRCode(w http.ResponseWriter, r *http.Request) {
+	info, status, err := v.buildPairingInfo(r)
+	if err != nil {
+		writeError(w, status, err)
+		return
+	}
 	png, err := info.QRCodePNG(256)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -139,4 +152,23 @@ func (v *VoiceExtras) handlePairQRCode(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "image/png")
 	w.Write(png)
+}
+
+// handlePairQRCodeMatrix is the same pairing flow as handlePairQRCode,
+// but returns the QR code's raw module grid as JSON instead of a PNG
+// -- for a client with no image decoder (the TUI), which draws its own
+// unicode-block QR code from the grid, the same way it draws the
+// mascot's sprite grid.
+func (v *VoiceExtras) handlePairQRCodeMatrix(w http.ResponseWriter, r *http.Request) {
+	info, status, err := v.buildPairingInfo(r)
+	if err != nil {
+		writeError(w, status, err)
+		return
+	}
+	modules, err := info.QRCodeModules()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"url": info.URL(), "modules": modules})
 }

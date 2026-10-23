@@ -44,36 +44,60 @@ only what is true right now.
   is wired, Enter on a device sends the `DELETE`). `src/app.ts` is the
   app shell: Chat is the default screen; leaving any screen (Esc/q)
   opens the Ctrl+K-style palette to jump to another; Ctrl+C quits.
+- **Command approval (T3 part 3)**: the shell agent previously
+  refused every command outright (`agent.New(policy, nil)` -- see
+  `docs/DECISIONS.md`'s "Generic async approval queue" entry). A new
+  `internal/approval.Queue` bridges a blocked command execution to a
+  human decision from any attached client; `src/screens/approvals.ts`
+  polls `GET /api/runyx/approvals` every second and lets the user
+  approve (`a`) or deny (`d`), with the full command detail shown.
+- **Model pull progress (T3 part 3)**: the Models screen now streams
+  `/api/runyx/models/pull`'s NDJSON progress into a real progress bar
+  (`p` to pull the selected model, Ctrl+X to cancel).
+- **Pairing screen (T3 part 3)**: issues a one-time device token via
+  the new `POST /api/runyx/pairing/qrcode-matrix` (same token/host
+  logic as the web UI's PNG route, refactored to share it) and renders
+  the QR code's raw module grid as unicode half-blocks -- no QR
+  encoding was reimplemented in TypeScript; `internal/pairing`'s
+  existing, tested Go encoder is still the only one.
 
 ## What is tested
 
-- 153 unit tests (`bun test`, see `tui/test/*.test.ts`): terminal
+- 163 unit tests (`bun test`, see `tui/test/*.test.ts`): terminal
   buffer/diff, input parsing, layout/scroll math, widgets, markdown
-  rendering, selection/clipboard (T0-T2), plus the client's SSE
-  termination handling (resolves on `[DONE]` and on plain connection
-  close, rejects on abort/non-OK) and `config.toml` parsing (T3).
+  rendering, selection/clipboard (T0-T2), the client's SSE termination
+  handling, `config.toml` parsing, approval/pull/pairing client calls,
+  and the QR half-block rendering logic (T3).
+- Go side: `internal/approval` (9 tests, including a genuine
+  self-deadlock caught by `go test -race -timeout`), 3 new HTTP
+  integration tests for the approval endpoints (end-to-end blocking
+  approve, hash-mismatch rejection, disabled-by-default), and 3 new
+  tests for the QR matrix endpoint/encoder. Full Go suite green with
+  `-race`.
 - `tsc --noEmit` is clean across the whole `tui/` tree.
 - The compiled binary was smoke-tested against a real `runyx serve`:
   daemon-autostart from cold (no daemon running, `runyx` found on
   `$PATH`) reaching a healthy `/healthz`, and the "no model installed"
   error path. Not exercised end-to-end with a real model loaded and a
   live terminal (no TTY available in this environment to drive the
-  interactive Chat/Dashboard/Models/Permissions screens visually) --
-  this is the biggest real gap in verification and should be the
-  first thing a human checks before trusting this report.
+  interactive Chat/Dashboard/Models/Permissions/Approvals/Pairing
+  screens visually) -- this is the biggest real gap in verification
+  and should be the first thing a human checks before trusting this
+  report. In particular: the approval flow's blocking behavior is
+  verified at the HTTP-integration level (Go) and the polling/approve
+  UI is typechecked and unit-tested piece by piece, but the full loop
+  (a real shell command blocks, the TUI's Approvals screen shows it,
+  approving it from the TUI actually lets the command run) has not
+  been driven end-to-end with a real terminal attached.
 
 ## What is not built yet
 
-- **Pairing screen + QR code** (`/api/runyx/pairing/qrcode`): not
-  started.
-- **Command-approval UI** for the shell agent
-  (`/api/runyx/agent/execute` + its undo): not started -- the
-  Permissions screen only shows the agent's *current* scope, not a
-  live approval prompt for a pending command.
-- **Model pull / download progress**: the Models screen is read-only;
-  `/api/runyx/models/pull`'s streamed NDJSON progress is not wired to
-  any UI (no pull button, no progress bar, even though
-  `widgets/progressbar.ts` exists from T1).
+- **Command-approval UI, Remote Control scopes**: the approval queue
+  above is single-PC only -- per-device scopes (view-only /
+  can-approve-edits / can-approve-commands) and the "require approval
+  on this PC for dangerous actions" override from the Runyx Code
+  mission's §7 need Remote Control's device identity threaded through,
+  which is C2 scope in `docs/RUNYX_CODE.md`.
 - **Mouse + text selection inside the Chat transcript**: T2's
   selection/clipboard engine is built and unit-tested against
   synthetic `RenderedLine[]`, but the Chat screen does not yet wire

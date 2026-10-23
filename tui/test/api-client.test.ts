@@ -166,3 +166,18 @@ describe("RunyxClient pullModel", () => {
     await expect(client.pullModel("qwen-id", () => {})).rejects.toBeInstanceOf(ApiError);
   });
 });
+
+describe("RunyxClient pairingQRCode", () => {
+  test("sends the device name and returns url + modules as-is", async () => {
+    let capturedBody: any;
+    const payload = { url: "runyx://pair?d=abc", modules: [[true, false], [false, true]] };
+    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+      capturedBody = JSON.parse(init!.body as string);
+      return new Response(JSON.stringify(payload), { status: 200 });
+    }) as unknown as typeof fetch;
+    const client = new RunyxClient("http://127.0.0.1:11535");
+    const qr = await client.pairingQRCode("tui-device");
+    expect(capturedBody).toEqual({ DeviceName: "tui-device" });
+    expect(qr).toEqual(payload);
+  });
+});

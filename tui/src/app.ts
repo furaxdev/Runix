@@ -14,8 +14,9 @@ import { runDashboardScreen } from "./screens/dashboard.js";
 import { runModelsScreen } from "./screens/models.js";
 import { runPermissionsScreen } from "./screens/permissions.js";
 import { runApprovalsScreen } from "./screens/approvals.js";
+import { runPairingScreen } from "./screens/pairing.js";
 
-type ScreenName = "chat" | "dashboard" | "models" | "permissions" | "approvals";
+type ScreenName = "chat" | "dashboard" | "models" | "permissions" | "approvals" | "pairing";
 
 interface PaletteCommand {
   id: ScreenName;
@@ -28,6 +29,7 @@ const COMMANDS: PaletteCommand[] = [
   { id: "models", label: "Models" },
   { id: "permissions", label: "Permissions" },
   { id: "approvals", label: "Approvals" },
+  { id: "pairing", label: "Pair a device" },
 ];
 
 /**
@@ -128,6 +130,8 @@ export async function runApp(terminal: Terminal, client: RunyxClient, opts: AppO
       await runPermissionsScreen(terminal, client);
     } else if (current === "approvals") {
       await runApprovalsScreen(terminal, client);
+    } else if (current === "pairing") {
+      await runPairingScreen(terminal, client);
     }
     if (quitting) break;
     const next = await runPalette(terminal);

@@ -38,6 +38,19 @@ func (i Info) QRCodePNG(size int) ([]byte, error) {
 	return qrcode.Encode(i.URL(), qrcode.Medium, size)
 }
 
+// QRCodeModules returns the QR code's raw module grid (true = dark
+// module) for a client that renders its own QR code instead of
+// consuming a PNG -- the TUI, which has no image decoder and draws
+// unicode blocks directly from a boolean grid the same way it does
+// for the mascot's sprite grid.
+func (i Info) QRCodeModules() ([][]bool, error) {
+	qr, err := qrcode.New(i.URL(), qrcode.Medium)
+	if err != nil {
+		return nil, err
+	}
+	return qr.Bitmap(), nil
+}
+
 // IsLoopbackHost reports whether host (as found in a listen address, with
 // no port) only binds the local machine: empty (Go's default "all
 // interfaces" is NOT loopback, so that's handled separately by callers
