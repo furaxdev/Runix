@@ -5,7 +5,7 @@
 import { Terminal } from "./term/terminal.js";
 import { ensureDaemon, DaemonUnavailableError } from "./api/daemon.js";
 import { RunyxClient } from "./api/client.js";
-import { runChatScreen } from "./screens/chat.js";
+import { runApp } from "./app.js";
 
 async function pickModel(client: RunyxClient): Promise<string | null> {
   const models = await client.listModels().catch(() => []);
@@ -36,7 +36,7 @@ async function main(): Promise<void> {
   const terminal = new Terminal();
   await terminal.start();
   try {
-    await runChatScreen(terminal, client, { model });
+    await runApp(terminal, client, { model });
   } finally {
     terminal.stop();
   }
