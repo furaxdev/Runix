@@ -30,6 +30,16 @@ export interface RenderedLine {
   codeBlockLang?: string;
   isCodeBlockHeader?: boolean;
   isCodeBlockFooter?: boolean;
+  /**
+   * True for every wrapped visual line after the first one produced
+   * from a single logical paragraph/heading/list-item line — i.e. a
+   * soft wrap the terminal width forced, not a line break the user (or
+   * the model) actually wrote. Selection/copy joins these with a
+   * space; real line breaks (code block lines, separate list items,
+   * table rows, paragraph boundaries) join with "\n". Never set on
+   * code block lines, which are never soft-wrapped.
+   */
+  wrapContinuation?: boolean;
 }
 
 export interface RenderOptions {
@@ -58,18 +68,19 @@ function renderBlock(b: BlockNode, opts: RenderOptions, indent: number, out: Ren
     case "heading": {
       const plain = inlineToPlainText(b.children);
       const prefix = "#".repeat(b.level) + " ";
-      for (const line of wrapText(plain, width - prefix.length)) {
+      wrapText(plain, width - prefix.length).forEach((line, i) => {
         out.push({
           spans: [{ text: indentStr(indent) + prefix + line, bold: true, colorToken: "accent" }],
           plainText: line,
           source: b,
+          wrapContinuation: i > 0,
         });
-      }
+      });
       return;
     }
     case "paragraph": {
       const spanLines = wrapInline(b.children, width, opts.italicSupported);
-      for (const line of spanLines) out.push({ spans: prefixSpans(indentStr(indent), line.spans), plainText: line.plainText, source: b });
+      spanLines.forEach((line, i) => out.push({ spans: prefixSpans(indentStr(indent), line.spans), plainText: line.plainText, source: b, wrapContinuation: i > 0 }));
       return;
     }
     case "rule":
@@ -88,6 +99,7 @@ function renderBlock(b: BlockNode, opts: RenderOptions, indent: number, out: Ren
             spans: prefixSpans(prefix, line.spans, item.checked === true ? { strike: true, dim: true } : {}),
             plainText: line.plainText,
             source: item,
+            wrapContinuation: i > 0,
           });
         });
       }
