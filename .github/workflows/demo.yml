@@ -5,6 +5,15 @@ on:
   push:
     branches:
       - ccr-8047f90c-ur2jz8
+    # Skip pushes that only touch the TUI or docs: they can't change the
+    # daemon/web UI the demo exercises, and re-running Playwright on every
+    # TUI commit just burns CI time and noise (concurrency.cancel-in-progress
+    # below already cancels a superseded run, but it's better to never
+    # start it).
+    paths-ignore:
+      - "tui/**"
+      - "docs/**"
+      - "**.md"
 
 permissions:
   contents: write
@@ -165,6 +174,76 @@ jobs:
           echo "::error::daemon never became healthy"
           cat demo-output/terminal/serve.log
           exit 1
+
+      # Separates "the model/server is just slow" from "the frontend never
+      # notices the stream ended" without going through Playwright at all:
+      # hits the daemon's two streaming chat endpoints directly and times
+      # them. See docs/DECISIONS.md.
+      - name: Probe streaming endpoints (SSE diagnostics)
+        run: |
+          set -o pipefail
+          mkdir -p demo-output/terminal
+          OUT=demo-output/terminal/06-stream-probe.txt
+          : > "$OUT"
+
+          probe() {
+            local label="$1" url="$2" body="$3"
+            echo "=== $label ($url) ===" | tee -a "$OUT"
+            local raw
+            raw="$(mktemp)"
+            local start_s end_s
+            start_s=$(date +%s.%N)
+            curl -N -sS -m 90 -X POST "$url" -H "Content-Type: application/json" -d "$body" > "$raw" 2>>"$OUT" || true
+            end_s=$(date +%s.%N)
+
+            local first_token_s="" event_count=0 done_seen=0 finish_reason="<none>"
+            while IFS= read -r line; do
+              case "$line" in
+                "data: [DONE]")
+                  done_seen=1
+                  ;;
+                data:\ *)
+                  data="${line#data: }"
+                  if [ -z "$first_token_s" ]; then
+                    first_token_s=$(date +%s.%N)
+                  fi
+                  event_count=$((event_count + 1))
+                  fr=$(printf '%s' "$data" | grep -o '"finish_reason":"[a-z_]*"' || true)
+                  [ -n "$fr" ] && finish_reason="$fr"
+                  ;;
+              esac
+            done < "$raw"
+            # Ollama-style NDJSON ("done":true) lines, for /api/chat.
+            if grep -q '"done":true' "$raw" 2>/dev/null; then
+              done_seen=1
+            fi
+            if [ -z "$first_token_s" ]; then first_token_s="$end_s"; fi
+
+            local ttft total tps
+            ttft=$(awk -v a="$start_s" -v b="$first_token_s" 'BEGIN{printf "%.2f", b-a}')
+            total=$(awk -v a="$start_s" -v b="$end_s" 'BEGIN{printf "%.2f", b-a}')
+            tps=$(awk -v n="$event_count" -v t="$total" 'BEGIN{ if (t>0) printf "%.2f", n/t; else print "0" }')
+            {
+              echo "time to first token: ${ttft}s"
+              echo "total time: ${total}s"
+              echo "event/token count: $event_count"
+              echo "events per second: $tps"
+              echo "finish_reason seen: $finish_reason"
+              echo "stream end signal seen ([DONE] or done:true): $done_seen"
+              echo
+            } | tee -a "$OUT"
+            rm -f "$raw"
+          }
+
+          probe "OpenAI-compatible /v1/chat/completions (max_tokens=32, temp=0)" \
+            "http://127.0.0.1:11535/v1/chat/completions" \
+            "{\"model\":\"$MODEL_SPEC\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hi in exactly three words.\"}],\"max_tokens\":32,\"temperature\":0,\"stream\":true}"
+
+          probe "Ollama-compatible /api/chat (no token cap honored upstream today)" \
+            "http://127.0.0.1:11535/api/chat" \
+            "{\"model\":\"$MODEL_SPEC\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hi in exactly three words.\"}],\"stream\":true,\"options\":{\"num_predict\":32,\"temperature\":0}}"
+
+          cat "$OUT"
 
       - name: Install Playwright
         working-directory: scripts/demo

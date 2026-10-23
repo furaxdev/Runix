@@ -12,6 +12,22 @@ const SHOTS_DIR = path.join(OUT_DIR, "screenshots");
 const VIDEO_DIR = path.join(OUT_DIR, "video");
 const PROMPT = process.env.RUNYX_PROMPT ?? "Explain in one sentence what you are.";
 
+// Keeps the demo deterministic and bounded in time: a short, capped,
+// temperature-0 reply instead of however long the real default
+// generation would take on a CI CPU. Chat.svelte only honors these when
+// present on the page URL, so a normal user's conversation is never
+// affected. See docs/DECISIONS.md.
+const DEMO_MAX_TOKENS = process.env.RUNYX_DEMO_MAX_TOKENS ?? "64";
+const DEMO_TEMPERATURE = process.env.RUNYX_DEMO_TEMPERATURE ?? "0";
+const DEMO_URL = `${BASE_URL}/?demoMaxTokens=${DEMO_MAX_TOKENS}&demoTemp=${DEMO_TEMPERATURE}`;
+
+// How long to wait for the streaming cursor to disappear. Generous: even
+// a capped, deterministic reply can be slow on a CI CPU running the
+// deliberately-de-optimized "safe" kernel (see RUNYX_LLAMA_CPP_SAFE_CPU_KERNEL
+// in demo.yml) — this is a ceiling against a genuine hang, not a budget
+// we expect to need in full.
+const CURSOR_TIMEOUT_MS = Number(process.env.RUNYX_DEMO_CURSOR_TIMEOUT_MS ?? "300000");
+
 // A minimal valid 1x1 PNG, used to exercise the real attachment-upload
 // pipeline without shipping a binary fixture in the repo.
 const TINY_PNG_B64 =
@@ -48,7 +64,7 @@ async function setPrefs(page, theme, reduceMotion) {
 }
 
 async function gotoReady(page) {
-  await page.goto(BASE_URL, { waitUntil: "load" });
+  await page.goto(DEMO_URL, { waitUntil: "load" });
   await killAnimations(page);
   // Not `nav`: the sidebar is deliberately display:none below 760px
   // (phone width), so waiting for it to be *visible* would never
@@ -63,7 +79,7 @@ async function openTab(page, label) {
   await killAnimations(page);
 }
 
-async function sendAndWait(page, text, timeoutMs = 120000) {
+async function sendAndWait(page, text, timeoutMs = CURSOR_TIMEOUT_MS) {
   await page.locator("textarea").first().fill(text);
   await page.locator(".send").first().click();
   // Streaming started: a cursor marker appears, then disappears once the
@@ -131,7 +147,7 @@ async function runThemePass(browser, theme) {
   await page.waitForSelector(".chip", { timeout: 10000 });
   await shoot(page, path.join(dir, "04-attachment.png"));
   await page.locator(".send").first().click();
-  await page.waitForSelector(".cursor", { state: "detached", timeout: 120000 }).catch(() => {});
+  await page.waitForSelector(".cursor", { state: "detached", timeout: CURSOR_TIMEOUT_MS }).catch(() => {});
   await page.waitForTimeout(300);
 
   // 5. Models page: Installed / Recommended / Browse all.

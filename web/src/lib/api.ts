@@ -225,12 +225,19 @@ export const api = {
     model: string,
     messages: { role: string; content: string }[],
     onDelta: (text: string) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    opts?: { maxTokens?: number; temperature?: number }
   ): Promise<void> {
     const res = await fetch("/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, stream: true }),
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: true,
+        ...(opts?.maxTokens !== undefined ? { max_tokens: opts.maxTokens } : {}),
+        ...(opts?.temperature !== undefined ? { temperature: opts.temperature } : {}),
+      }),
       signal,
     });
     if (!res.ok || !res.body) {

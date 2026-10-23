@@ -291,3 +291,62 @@ with a real, curated model catalog.
     instead. The terminal compatibility matrix in `FEATURES.md` is
     protocol-support reasoning (what each terminal is documented to
     support), not hands-on verification, and is labeled as such.
+
+## Demo CI: streaming cursor never detached (Playwright timeout)
+
+After the AMD-EPYC CPU-kernel-correctness fix (`RUNYX_LLAMA_CPP_SAFE_CPU_KERNEL`,
+pinned `RUNYX_LLAMA_CPP_TAG`), the demo job still failed, but with a
+different symptom: Playwright timed out waiting for `.cursor` to detach
+in `scripts/demo/screenshot.mjs`, instead of the earlier "endless
+multilingual gibberish."
+
+- **Diagnosis without Playwright**: `demo.yml` gained a "Probe streaming
+  endpoints (SSE diagnostics)" step that hits `/v1/chat/completions` and
+  `/api/chat` directly with `curl -N` right after the daemon reports
+  healthy, logging time-to-first-token, event count, events/sec, and
+  whether a stream-end signal (`data: [DONE]` or `"done":true`) ever
+  arrives — separating "the model/server is slow but finishes" from "the
+  frontend never notices the stream ended," independent of whatever the
+  browser-side bug turns out to be.
+- **Root cause found in the frontend, not just speed**: `web/src/lib/api.ts`'s
+  `streamChat` sent no `max_tokens` at all (`cmd/runyx/cmd_run.go`'s own
+  `chatMaxTokens` safety net only covers the CLI's `runyx run` loop, never
+  the web UI), and `Chat.svelte` only flips `streaming = false` once that
+  unbounded request's promise resolves — with nothing watching for a
+  stalled/never-ending stream, a slow or runaway generation left the
+  `.cursor` element mounted indefinitely, which is exactly what Playwright
+  saw. Fixed by:
+  - `api.ts`: `streamChat` now accepts optional `maxTokens`/`temperature`
+    and only includes them in the request body when given — no change to
+    real conversations' defaults.
+  - `Chat.svelte`: wires an `AbortController` (so a Stop button can cancel
+    a request stuck on a legitimately-slow model) and a stall watchdog —
+    if no delta arrives for 20s, it shows "Model is slow or stalled" with
+    the Stop button, instead of a cursor that spins forever with no
+    explanation. The watchdog never aborts on its own; a real model can
+    legitimately take a while.
+  - `screenshot.mjs`: passes `demoMaxTokens`/`demoTemp` query params (read
+    by `Chat.svelte`, ignored unless present) to make the demo's one
+    scripted reply short and deterministic (default 64 tokens, temp 0)
+    instead of depending on however long an uncapped generation takes on
+    CI's deliberately-de-optimized "safe" CPU kernel; the Playwright
+    cursor-detach timeout was also raised to 300s as a ceiling against a
+    genuine hang, not a budget expected to be needed in full.
+  - Added `web/src/lib/api.test.ts` (Vitest, new `web` dependency) with a
+    fake SSE `ReadableStream` to assert `streamChat` resolves on both
+    `[DONE]` and plain connection-close, and that an aborted signal
+    rejects instead of hanging — the frontend-side regression test for
+    this exact bug shape. Wired into `ci.yml` as a new `web` job
+    (`npm test` + `npm run build`); there was no CI job exercising `web/`
+    at all before this.
+- **Known gap, not fixed here**: `internal/api/ollama.go`'s `handleChat`
+  decodes `OllamaChatRequest.Options` but never forwards it upstream, so
+  `/api/chat` callers' `num_predict`/`temperature` are silently ignored
+  today. Out of scope for this fix (the web UI uses `/v1/chat/completions`,
+  not `/api/chat`) but left here so it isn't rediscovered as a mystery
+  later.
+- **CI noise**: `demo.yml`'s push trigger gained `paths-ignore` for
+  `tui/**`, `docs/**`, `**.md` — TUI/doc-only commits can't change the
+  daemon or web UI the demo exercises, so they no longer spend a full
+  Playwright run (the existing `concurrency.cancel-in-progress` already
+  cancelled the superseded run, but not starting it is strictly better).

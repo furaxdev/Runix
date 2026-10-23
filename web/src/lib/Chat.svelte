@@ -17,8 +17,42 @@
   export let initialAttachments: { file_name: string; kind: string; text: string }[] = [];
 
   let streaming = false;
+  let stalled = false;
   let liveReply = "";
   let currentAudio: HTMLAudioElement | null = null;
+  let abortController: AbortController | null = null;
+  let stallTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Demo-only determinism: screenshot.mjs passes these as query params so
+  // the CI demo gets a short, capped, reproducible reply instead of
+  // waiting on however long the real default generation takes. Absent in
+  // normal use, so real conversations are never capped by this.
+  const demoParams = new URLSearchParams(location.search);
+  const demoMaxTokens = demoParams.has("demoMaxTokens") ? Number(demoParams.get("demoMaxTokens")) : undefined;
+  const demoTemperature = demoParams.has("demoTemp") ? Number(demoParams.get("demoTemp")) : undefined;
+
+  // If no streamed token arrives for this long, something is stuck (a
+  // stalled upstream, a dropped connection) — tell the user instead of
+  // leaving the streaming cursor spinning forever. This never aborts the
+  // request on its own: a real model can legitimately take a while, so
+  // only the Stop button cancels it.
+  const STALL_TIMEOUT_MS = 20000;
+
+  function clearStallTimer() {
+    if (stallTimer) clearTimeout(stallTimer);
+    stallTimer = null;
+  }
+
+  function armStallTimer() {
+    clearStallTimer();
+    stallTimer = setTimeout(() => {
+      stalled = true;
+    }, STALL_TIMEOUT_MS);
+  }
+
+  function stopGeneration() {
+    abortController?.abort();
+  }
 
   onMount(() => {
     if (initialText || initialAttachments.length > 0) {
@@ -62,22 +96,41 @@
     onMessagesChanged();
 
     streaming = true;
+    stalled = false;
     liveReply = "";
+    abortController = new AbortController();
+    armStallTimer();
     try {
       const history = [...messages, { role: "user", content: fullContent }].map((m: any) => ({
         role: m.Role ?? m.role,
         content: m.Content ?? m.content,
       }));
-      await api.streamChat(model, history, (delta) => {
-        liveReply += delta;
-      });
+      await api.streamChat(
+        model,
+        history,
+        (delta) => {
+          liveReply += delta;
+          stalled = false;
+          armStallTimer();
+        },
+        abortController.signal,
+        { maxTokens: demoMaxTokens, temperature: demoTemperature }
+      );
       await api.addMessage(conversationId, "assistant", liveReply);
     } catch (e) {
-      liveReply += `\n\n[Error: ${e}]`;
-      await api.addMessage(conversationId, "assistant", liveReply);
+      if (abortController?.signal.aborted) {
+        // User-initiated Stop: keep whatever was generated so far, no error noise.
+        if (liveReply) await api.addMessage(conversationId, "assistant", liveReply);
+      } else {
+        liveReply += `\n\n[Error: ${e}]`;
+        await api.addMessage(conversationId, "assistant", liveReply);
+      }
     } finally {
+      clearStallTimer();
       streaming = false;
+      stalled = false;
       liveReply = "";
+      abortController = null;
       onMessagesChanged();
     }
   }
@@ -99,7 +152,15 @@
     {/each}
     {#if streaming}
       <div class="msg assistant">
-        <div class="bubble">{liveReply}<span class="cursor">|</span></div>
+        <div class="bubble">
+          {liveReply}<span class="cursor">|</span>
+          {#if stalled}
+            <div class="stall-notice">
+              <span>Model is slow or stalled</span>
+              <button class="stop-btn" type="button" on:click={stopGeneration}>Stop</button>
+            </div>
+          {/if}
+        </div>
       </div>
     {/if}
   </div>
@@ -151,6 +212,26 @@
   }
   .cursor {
     opacity: 0.5;
+  }
+  .stall-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    opacity: 0.8;
+  }
+  .stop-btn {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: inherit;
+    border-radius: var(--radius-sm, 4px);
+    padding: 0.15rem 0.6rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+  }
+  .stop-btn:hover {
+    background: var(--bg-elevated);
   }
   .listen {
     border: none;
