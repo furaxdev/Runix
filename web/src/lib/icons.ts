@@ -22,7 +22,6 @@ export {
   Check,
   X,
   Star,
-  Paperclip,
   Mic,
   Square,
   SendHorizontal,

@@ -484,3 +484,49 @@ second way to *display* the code.
   emulators -- both need real target machines/terminals this sandbox
   doesn't have. `THIRD_PARTY.md` gained a `tui/` section (no runtime
   dependencies at all, by design).
+
+## Composer redesign: one component, visually verified with a real (if faked-data) daemon
+
+Requested mid-session, scoped to the existing web UI (`Composer.svelte`
+is already shared by Home's centered composer and Chat's bottom dock;
+"the Code section" doesn't exist yet -- it'll get this same component
+for free once built, nothing extra needed there).
+
+- Rounded rect (24px radius, no hard border -- 1px subtle `--border` +
+  `--shadow`, `--bg-elevated` background, which is already "slightly
+  lighter than the page" in both themes), 2-row layout (textarea on
+  top, toolbar below), auto-growing from a 2-line rest height up to 8
+  lines (`autoGrow()` sets `textarea.style.height` from `scrollHeight`,
+  clamped, then scrolls past that) instead of the old single-line
+  `nowrap`+ellipsis textarea.
+- Toolbar: round `+` button (file attach, unchanged behavior --
+  `Paperclip` dropped from `icons.ts`, now unused anywhere), the model
+  picker restyled as a borderless `--bg-sunken` pill (was bordered
+  `--bg-elevated`), a spacer, round mic button, round send button
+  (grey/`--bg-sunken` at rest, `--accent` only once `hasContent` is
+  true -- previously `disabled` only ever meant "streaming", with no
+  visual tie to emptiness at all).
+- Focus ring via `color-mix(in srgb, var(--accent) 35%, transparent)`
+  on `:focus-within`, no new CSS variables needed for it.
+- Mobile (`max-width: 640px`): 12px side margin, 44px round buttons,
+  and the model pill gets `max-width: 140px` -- found and fixed a real
+  overflow bug here while visually verifying: the pill's flex item had
+  no `min-width: 0`, so on a 390px viewport it refused to shrink below
+  its content width and pushed the mic/send buttons out past the
+  composer's own rounded border. Wrapping it in a
+  `.model-select-wrap { min-width: 0; overflow: hidden; }` div inside
+  `Composer.svelte` fixed it.
+- **Verified visually, not just by typechecking**: built the real Go
+  binary with the rebuilt UI embedded, started a real daemon with a
+  faked `models.json` entry (no real GGUF needed just to see the
+  composer with a model selected -- real inference wasn't being
+  tested), and drove it with Playwright at desktop (light + dark) and
+  390px-mobile viewports, including typing multi-line text to confirm
+  the grow/shrink and the send button's grey-to-accent transition
+  actually happen. This is how the mobile overflow bug above was
+  caught -- it wasn't visible from the code alone.
+- Demo screenshots: not manually regenerated here -- `demo.yml` already
+  refreshes `docs/screenshots` (the `demo-screenshots` branch) on every
+  push that touches non-`tui`/non-`docs` paths, so pushing this
+  `web/src` + `internal/webui/dist` change triggers that pipeline the
+  normal way.

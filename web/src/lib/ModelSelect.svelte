@@ -67,14 +67,18 @@
   .trigger {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    border: 1px solid var(--border);
-    background: var(--bg-elevated);
-    border-radius: var(--radius-md);
-    padding: 0.4rem 0.6rem;
+    gap: 0.3rem;
+    border: none;
+    background: var(--bg-sunken);
+    border-radius: 999px;
+    padding: 0.38rem 0.7rem;
     color: var(--text);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     max-width: 220px;
+    transition: background var(--transition-fast);
+  }
+  .trigger:hover {
+    background: color-mix(in srgb, var(--bg-sunken) 70%, var(--text) 8%);
   }
   .label {
     overflow: hidden;
@@ -136,5 +140,12 @@
     padding: 0.6rem;
     color: var(--accent);
     font-size: 0.82rem;
+  }
+
+  @media (max-width: 640px) {
+    .trigger {
+      min-height: 44px;
+      max-width: 140px;
+    }
   }
 </style>

@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, tick } from "svelte";
   import { api, type RegistryModel } from "./api";
-  import { Paperclip, Mic, Square, SendHorizontal } from "./icons";
+  import { Plus, Mic, Square, SendHorizontal } from "./icons";
   import ModelSelect from "./ModelSelect.svelte";
 
   export let installedModels: RegistryModel[] = [];
@@ -15,12 +15,27 @@
     send: { text: string; attachments: { file_name: string; kind: string; text: string }[] };
   }>();
 
+  // Grows the textarea from a 2-line rest height up to MAX_LINES, then
+  // scrolls — never grows the whole page past that.
+  const MAX_LINES = 8;
+
   let input = "";
+  let textareaEl: HTMLTextAreaElement;
   let fileInput: HTMLInputElement;
   let pendingAttachments: { file_name: string; kind: string; text: string }[] = [];
   let recording = false;
   let mediaRecorder: MediaRecorder | null = null;
   let recordedChunks: Blob[] = [];
+
+  $: hasContent = input.trim().length > 0 || pendingAttachments.length > 0;
+
+  function autoGrow() {
+    if (!textareaEl) return;
+    textareaEl.style.height = "auto";
+    const lineHeight = parseFloat(getComputedStyle(textareaEl).lineHeight) || 20;
+    const maxHeight = lineHeight * MAX_LINES;
+    textareaEl.style.height = `${Math.min(textareaEl.scrollHeight, maxHeight)}px`;
+  }
 
   async function onFilePicked(e: Event) {
     const files = (e.target as HTMLInputElement).files;
@@ -53,6 +68,8 @@
         try {
           const result = await api.transcribeAudio(blob);
           input = (input ? input + " " : "") + result.text;
+          await tick();
+          autoGrow();
         } catch (err) {
           alert(`Transcription: ${err}`);
         }
@@ -64,12 +81,14 @@
     }
   }
 
-  function send() {
+  async function send() {
     const text = input.trim();
     if (!text && pendingAttachments.length === 0) return;
     dispatch("send", { text, attachments: pendingAttachments });
     input = "";
     pendingAttachments = [];
+    await tick();
+    autoGrow();
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -89,13 +108,31 @@
     </div>
   {/if}
 
-  <div class="row">
-    <button type="button" class="icon-btn" title="Attach a file" aria-label="Attach a file" on:click={() => fileInput.click()}>
-      <Paperclip size={17} aria-hidden="true" />
+  <textarea
+    bind:this={textareaEl}
+    bind:value={input}
+    {placeholder}
+    on:keydown={onKeydown}
+    on:input={autoGrow}
+    rows="2"
+    {autofocus}
+  />
+
+  <div class="toolbar">
+    <button type="button" class="round-btn" title="Attach a file" aria-label="Attach a file" on:click={() => fileInput.click()}>
+      <Plus size={18} aria-hidden="true" />
     </button>
+    <input type="file" bind:this={fileInput} on:change={onFilePicked} style="display: none" multiple />
+
+    <div class="model-select-wrap">
+      <ModelSelect installed={installedModels} selected={model} {onBrowseMore} on:select={(e) => (model = e.detail)} />
+    </div>
+
+    <div class="spacer" />
+
     <button
       type="button"
-      class="icon-btn"
+      class="round-btn"
       class:active={recording}
       title={recording ? "Recording... click to stop" : "Talk (push-to-talk)"}
       aria-label={recording ? "Stop recording" : "Start voice input"}
@@ -104,23 +141,19 @@
       {#if recording}
         <Square size={16} aria-hidden="true" />
       {:else}
-        <Mic size={17} aria-hidden="true" />
+        <Mic size={18} aria-hidden="true" />
       {/if}
     </button>
-    <input type="file" bind:this={fileInput} on:change={onFilePicked} style="display: none" multiple />
 
-    <textarea
-      bind:value={input}
-      {placeholder}
-      on:keydown={onKeydown}
-      rows="1"
-      {autofocus}
-    />
-
-    <ModelSelect installed={installedModels} selected={model} {onBrowseMore} on:select={(e) => (model = e.detail)} />
-
-    <button type="button" class="send" on:click={send} disabled={disabled} aria-label="Send message">
-      <SendHorizontal size={17} aria-hidden="true" />
+    <button
+      type="button"
+      class="round-btn send"
+      class:filled={hasContent}
+      on:click={send}
+      disabled={disabled || !hasContent}
+      aria-label="Send message"
+    >
+      <SendHorizontal size={18} aria-hidden="true" />
     </button>
   </div>
 </div>
@@ -132,14 +165,18 @@
     margin: 0 auto;
     background: var(--bg-elevated);
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 0.6rem 0.75rem;
+    border-radius: 24px;
+    padding: 0.55rem 0.6rem 0.5rem;
     box-shadow: var(--shadow);
+    transition: box-shadow var(--transition-fast);
+  }
+  .composer:focus-within {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow);
   }
   .chips {
     display: flex;
     gap: 0.5rem;
-    padding: 0 0.2rem 0.5rem;
+    padding: 0.1rem 0.5rem 0.5rem;
     flex-wrap: wrap;
   }
   .chip {
@@ -150,56 +187,81 @@
     padding: 0.25rem 0.7rem;
     color: var(--text-muted);
   }
-  .row {
-    display: flex;
-    align-items: flex-end;
-    gap: 0.5rem;
-  }
   textarea {
-    flex: 1;
-    min-width: 0;
+    display: block;
+    width: 100%;
+    min-height: 2.8em;
+    max-height: calc(1.4em * 8);
     border: none;
     background: transparent;
     resize: none;
     font-family: inherit;
     font-size: 0.95rem;
+    line-height: 1.4;
     color: var(--text);
     outline: none;
-    max-height: 160px;
-    padding: 0.4rem 0.2rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    padding: 0.35rem 0.5rem 0.3rem;
+    overflow-y: auto;
   }
-  textarea:focus {
-    white-space: pre-wrap;
-    overflow: auto;
-  }
-  .icon-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    background: transparent;
-    border-radius: var(--radius-md);
-    padding: 0.5rem;
+  textarea::placeholder {
     color: var(--text-muted);
   }
-  .icon-btn.active {
-    color: var(--accent-contrast);
-    background: var(--accent);
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.1rem 0.15rem 0;
   }
-  .send {
+  .spacer {
+    flex: 1;
+  }
+  .model-select-wrap {
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+  }
+  .round-btn {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    flex: 0 0 auto;
     border: none;
-    border-radius: var(--radius-md);
-    padding: 0.55rem;
-    background: var(--accent);
-    color: var(--accent-contrast);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted);
+    transition: background var(--transition-fast), color var(--transition-fast);
   }
-  .send:disabled {
-    opacity: 0.5;
+  .round-btn:hover {
+    background: var(--bg-sunken);
+  }
+  .round-btn.active {
+    color: var(--accent-contrast);
+    background: var(--accent);
+  }
+  .round-btn.send {
+    color: var(--text-muted);
+    background: var(--bg-sunken);
+  }
+  .round-btn.send.filled {
+    color: var(--accent-contrast);
+    background: var(--accent);
+  }
+  .round-btn.send:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  @media (max-width: 640px) {
+    .composer {
+      margin: 0 12px;
+      width: calc(100% - 24px);
+      max-width: none;
+    }
+    .round-btn {
+      width: 44px;
+      height: 44px;
+    }
   }
 </style>
