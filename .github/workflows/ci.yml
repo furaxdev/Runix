@@ -74,6 +74,23 @@ jobs:
           CGO_ENABLED: "0"
         run: go build -o /tmp/runyx-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/runyx
 
+  tui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - name: bun install
+        run: bun install --frozen-lockfile
+      - name: typecheck
+        run: bun run typecheck
+      - name: test
+        run: bun test
+
   android:
     runs-on: ubuntu-latest
     steps:

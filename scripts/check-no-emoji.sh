@@ -14,8 +14,8 @@ cd "$(dirname "$0")/.."
 PATTERN='[\x{1F300}-\x{1FAFF}\x{1F000}-\x{1F2FF}\x{2600}-\x{27BF}]'
 
 hits=$(LC_ALL=C.UTF-8 grep -rnP --binary-files=text "$PATTERN" \
-  web/src cmd internal android/app/src docs README.md FEATURES.md RUNYX_PROMPT.md THIRD_PARTY.md models \
-  --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=build \
+  web/src cmd internal android/app/src tui/src tui/test docs README.md FEATURES.md RUNYX_PROMPT.md THIRD_PARTY.md models \
+  --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=build --exclude-dir=dist-tui --exclude-dir=dist-ts \
   2>/dev/null || true)
 
 if [ -n "$hits" ]; then
