@@ -183,3 +183,29 @@ with a real, curated model catalog.
   management (with a "Pair a device" entry point into the existing
   pairing flow) now live there; Settings is appearance-only (theme,
   reduce motion).
+- **llama.cpp build pinning** (`internal/backend/fetch.go`,
+  `RUNYX_LLAMA_CPP_TAG` env var): upstream llama.cpp has no separate
+  "stable" release channel — every published GitHub release is a
+  continuous-build nightly tag (`bNNNNN`), and the "latest" one is
+  frequently a source-only milestone tag with no binaries at all
+  (resolved via its `nightly-tag.txt` asset instead). A real demo.yml
+  CI run hit a CPU-kernel correctness bug in build `b11669`: the exact
+  same model and build gave a coherent reply on an Intel-CPU GitHub
+  runner and endless multilingual gibberish — never emitting a stop
+  token — on an AMD EPYC 7763 runner, because `ggml-cpu` dynamically
+  dispatches to one of several per-microarchitecture compiled kernels
+  at runtime based on the detected CPU. By default `runyx` still
+  follows "latest" automatically (unchanged for normal users); setting
+  `RUNYX_LLAMA_CPP_TAG` pins an exact tag instead, bypassing both
+  "latest" resolution and the nightly-tag indirection. `demo.yml` pins
+  it (currently `b11836`) for CI reproducibility; revisit this if/when
+  upstream ships an actual stable channel.
+- **Chat CLI hang safety net** (`cmd/runyx/cmd_run.go`): the interactive
+  `runyx run` chat loop had no HTTP client timeout and no cap on reply
+  length, so a runaway generation (as above) hung the CLI forever with
+  no way to recover short of killing the process — which is exactly
+  what happened in CI (a 30-minute job timeout, not a clean failure).
+  Added a 3-minute client timeout and a 1024-token cap on
+  `max_tokens` as defense-in-depth: neither fixes a bad generation's
+  *content*, but both turn an indefinite hang into a bounded, visible
+  failure.

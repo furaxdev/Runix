@@ -217,7 +217,23 @@ func (f *Fetcher) anyCachedBinary(info hwdetect.Info) (string, bool) {
 // assets. llama.cpp's GitHub "latest" release is often a source-only
 // milestone tag carrying just a nightlyTagAssetName pointer; when that's
 // the case, follow it to the continuous-build release underneath.
+// PinnedReleaseTagEnv, when set, pins the exact llama.cpp build tag to
+// fetch (e.g. "b11836") instead of always following whatever upstream
+// currently reports as "latest". llama.cpp has no separate "stable"
+// release channel — every published tag is a continuous-build nightly,
+// and ggml-cpu's runtime CPU-microarchitecture dispatch means a given
+// tag can behave correctly on one CPU and mis-generate (a real failure
+// mode, not hypothetical — see docs/DECISIONS.md) on another. Pinning
+// trades "always the newest build" for a specific, deliberately chosen
+// tag, so a fix to the far more common case (something upstream) means
+// updating this one tag rather than discovering a regression in
+// production. Unset by default: normal `runyx` always follows latest.
+const PinnedReleaseTagEnv = "RUNYX_LLAMA_CPP_TAG"
+
 func (f *Fetcher) latestRelease(ctx context.Context) (ghRelease, error) {
+	if tag := strings.TrimSpace(os.Getenv(PinnedReleaseTagEnv)); tag != "" {
+		return f.fetchRelease(ctx, releaseByTagAPI(tag))
+	}
 	rel, err := f.fetchRelease(ctx, ReleasesAPI)
 	if err != nil {
 		return ghRelease{}, err

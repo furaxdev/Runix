@@ -181,6 +181,42 @@ func TestLatestReleaseFollowsNightlyTagPointer(t *testing.T) {
 	}
 }
 
+// TestLatestReleaseHonorsPin guards the pin mechanism: with
+// RUNYX_LLAMA_CPP_TAG set, latestRelease() must fetch that exact tag
+// directly, bypassing both "latest" and the nightly-tag indirection
+// entirely (a pinned tag already names a real build with binaries, so
+// there's nothing to follow).
+func TestLatestReleaseHonorsPin(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/latest", func(w http.ResponseWriter, r *http.Request) {
+		t.Error("latestRelease should not call the /latest endpoint when a tag is pinned")
+	})
+	mux.HandleFunc("/tags/b11836", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(ghRelease{
+			TagName: "b11836",
+			Assets:  []ghAsset{{Name: "llama-b11836-bin-ubuntu-x64.tar.gz"}},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	oldReleasesAPI, oldByTag := ReleasesAPI, releaseByTagAPI
+	ReleasesAPI = srv.URL + "/latest"
+	releaseByTagAPI = func(tag string) string { return srv.URL + "/tags/" + tag }
+	defer func() { ReleasesAPI, releaseByTagAPI = oldReleasesAPI, oldByTag }()
+
+	t.Setenv(PinnedReleaseTagEnv, "b11836")
+
+	f := NewFetcher(t.TempDir())
+	rel, err := f.latestRelease(context.Background())
+	if err != nil {
+		t.Fatalf("latestRelease: %v", err)
+	}
+	if rel.TagName != "b11836" {
+		t.Errorf("TagName = %q, want the pinned tag", rel.TagName)
+	}
+}
+
 // TestExtractServerBinaryFromTarGz guards the .tar.gz extraction path
 // (used on Linux and macOS, where llama.cpp ships tar.gz rather than
 // zip) end-to-end: build a real tar.gz containing a server binary, a

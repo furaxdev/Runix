@@ -21,6 +21,16 @@ jobs:
       MODEL_SPEC: "Qwen/Qwen2.5-0.5B-Instruct-GGUF"
       RUNYX_HOME: ${{ github.workspace }}/.runyx-demo
       LISTEN_ADDR: "0.0.0.0:11535"
+      # Pin the llama.cpp build instead of always following "latest":
+      # upstream has no separate "stable" channel (every release is a
+      # continuous-build nightly), and a real run on a GitHub-hosted
+      # AMD EPYC 7763 runner hit a CPU-kernel correctness bug in
+      # b11669 — the exact same model + build gave a coherent reply on
+      # an Intel runner but endless multilingual gibberish on that AMD
+      # one (ggml-cpu auto-dispatches to a per-microarchitecture .so at
+      # runtime, so the bug is CPU-specific). See docs/DECISIONS.md.
+      # Bump this deliberately (not blindly) if it needs updating.
+      RUNYX_LLAMA_CPP_TAG: "b11836"
     steps:
       - uses: actions/checkout@v4
 

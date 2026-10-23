@@ -85,10 +85,23 @@ type chatMsg struct {
 	Content string `json:"content"`
 }
 
+// chatRequestTimeout bounds one full chat exchange (request plus
+// reading the entire streamed reply). Without it a runaway generation
+// — the model never producing a stop token, which does happen in
+// practice, not just hypothetically — hangs this CLI forever with no
+// way to recover short of killing the process.
+const chatRequestTimeout = 3 * time.Minute
+
+// chatMaxTokens caps how many tokens a single reply may generate, as a
+// second line of defense alongside chatRequestTimeout: it turns a
+// still-slow-but-not-yet-timed-out runaway generation into a bounded,
+// visibly truncated reply instead of 3 minutes of churn.
+const chatMaxTokens = 1024
+
 func chatLoop(baseURL, modelName string) error {
 	var history []chatMsg
 	scanner := bufio.NewScanner(os.Stdin)
-	client := &http.Client{}
+	client := &http.Client{Timeout: chatRequestTimeout}
 
 	for {
 		fmt.Print("you> ")
@@ -105,13 +118,14 @@ func chatLoop(baseURL, modelName string) error {
 		history = append(history, chatMsg{Role: "user", Content: line})
 
 		body, _ := json.Marshal(map[string]any{
-			"model":    modelName,
-			"messages": history,
-			"stream":   true,
+			"model":      modelName,
+			"messages":   history,
+			"stream":     true,
+			"max_tokens": chatMaxTokens,
 		})
 		resp, err := client.Post(baseURL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
 		if err != nil {
-			return fmt.Errorf("chat request: %w", err)
+			return fmt.Errorf("chat request (no reply within %s — the model may be stuck generating): %w", chatRequestTimeout, err)
 		}
 
 		fmt.Print("runyx> ")
