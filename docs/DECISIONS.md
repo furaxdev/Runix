@@ -269,6 +269,27 @@ with a real, curated model catalog.
     `GET /healthz`, and if that fails, spawns `runyx serve` itself
     (detached) and polls until healthy or a timeout, rather than Runyx
     gaining a new lockfile/PID-discovery protocol in this pass.
+  - **T3 part 1 (implemented)**: `tui/src/api/config.ts`,
+    `daemon.ts`, and `client.ts` implement the discovery/autostart
+    paragraph above and a typed HTTP+SSE client for the daemon's
+    `/api/*`, `/api/runyx/*`, and `/v1/chat/completions` routes (field
+    casing matches the Go structs exactly — PascalCase for
+    conversations/messages via `encoding/json`'s default, snake_case
+    where `internal/api/*.go` sets explicit json tags). `config.ts`
+    parses `config.toml`'s `listen_addr` with a couple of regex lines
+    rather than pulling in a TOML library: the file Runyx itself writes
+    (`internal/config`) is always a flat key="value" table, never
+    nested tables or arrays, so a parser is more generality than this
+    needs. `tui/src/screens/chat.ts` is the first real screen: it
+    deliberately mirrors `web/src/lib/Chat.svelte`'s streaming contract
+    (no `max_tokens` cap by default, a 20s stall watchdog that shows
+    "model is slow or stalled" instead of a spinner that never ends,
+    Ctrl+X to abort) — see this file's "streaming cursor never
+    detached" entry for why that pairing matters: both clients hit the
+    exact same unbounded SSE proxy. `tui/src/main.ts` wires
+    boot -> ensure daemon -> pick the first installed model -> run the
+    Chat screen; Models/Dashboard/Permissions/Pairing/command-approval/
+    the Ctrl+K palette are not built yet (tracked in `TUI_REPORT.md`).
   - **Go-side launch wiring**: bare `runyx` and `runyx tui` exec a
     sibling `runyx-tui` executable (built from `tui/`) when stdout is a
     TTY, found next to the `runyx` binary or on `$PATH`; `runyx run
