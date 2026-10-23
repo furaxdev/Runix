@@ -55,21 +55,6 @@ full push access runs `git push origin --tags` from a clone that has
 them (or recreates them from the commit hashes recorded in this file and
 in commit messages).
 
-## No interactive approval UI for the shell agent yet
-
-`internal/agent.Agent` needs an `ApprovalFunc` to ever run anything — by
-design, it fails closed without one. The daemon currently wires up the
-shell agent (when `agent_work_dir` is configured) with `nil`, so every
-command is refused. Building a real "ask the user over HTTP and wait for
-their click" flow (a pending-approval queue, a UI panel, a way to push
-the question to a connected client) is real work that didn't fit this
-session; until it exists, the shell agent's safety mechanics (policy,
-snapshots, audit, undo) are implemented and tested, but nothing can
-actually approve a command through the daemon's HTTP API. A CLI-driven
-`*agent.Agent` constructed directly with a real terminal-prompt
-`ApprovalFunc` would work today — that path just isn't wired into
-`runyx serve`.
-
 ## No wake-word / hands-free voice activation
 
 Item 25 asks for a hands-free mode with a wake word, in addition to

@@ -371,3 +371,61 @@ multilingual gibberish."
   daemon or web UI the demo exercises, so they no longer spend a full
   Playwright run (the existing `concurrency.cancel-in-progress` already
   cancelled the superseded run, but not starting it is strictly better).
+
+## Generic async approval queue (`internal/approval`), replacing the shell agent's `nil` ApprovalFunc
+
+`docs/BLOCKED.md` had flagged this precisely: `internal/daemon.New`
+wired the shell agent with `agent.New(policy, nil)`, and `nil` means
+"fail closed" per `resolveApproval` -- every command was refused
+outright, because there was no bridge between a command execution
+blocking inside one HTTP request's goroutine and a human looking at a
+UI deciding, in a second, later HTTP request.
+
+- `internal/approval.Queue` is that bridge: `Submit(ctx, req)` blocks
+  the caller until `Resolve(id, hash, decision)` is called for it, its
+  own 10-minute expiry passes, or `ctx` is cancelled -- always
+  resolving an unanswered wait as denied, never as an implicit allow.
+  `Resolve` fails closed on an unknown id, an expired request, or a
+  hash that doesn't match the request's `Hash` (sha256 of
+  `kind+"\x00"+detail`, computed by `NewRequest`, never trusted from a
+  caller) -- so a command can't be approved after its content changed
+  from what was shown.
+  - Found and fixed a genuine self-deadlock while writing this:
+    `List()` locked `q.mu` then called `clock()`, which also locked
+    `q.mu` -- `sync.Mutex` isn't reentrant, so this hung forever the
+    moment a second goroutine (`Submit`) also wanted the lock. Fixed
+    by splitting `clock()` (locks) from a `clockLocked()` the already-
+    locked callers use instead. Caught by `go test -race -timeout`,
+    which dumps every goroutine's stack on a hang -- exactly how it
+    was found.
+- `internal/agent.ApprovalFunc`'s signature gained a `context.Context`
+  parameter (`func(ctx, Request) (bool, ApprovalScope)`, was `func(Request)
+  (bool, ApprovalScope)`): without it, an approval implementation that
+  blocks on something like `Queue.Submit` had no way to honor the
+  original HTTP request's cancellation, and would keep waiting up to
+  the full 10-minute expiry after the client was already gone. This
+  is a breaking change to the type, contained entirely within
+  `internal/agent` and its own tests (nothing outside the package
+  constructed an `ApprovalFunc` yet, since the daemon's only call site
+  passed `nil`).
+- `internal/daemon.New` now always creates `d.Approvals =
+  approval.NewQueue()` (even with the shell agent disabled, so the
+  HTTP endpoints have something to report "no pending approvals"
+  against) and wires the shell agent's `ApprovalFunc` to
+  `approvalAdapter(d.Approvals)` instead of `nil`.
+- New routes: `GET /api/runyx/approvals` (list pending) and `POST
+  /api/runyx/approvals/{id}/decide` (resolve one, 409 on any failure
+  mode -- unknown id, hash mismatch, expired). Wired into
+  `internal/api.AgentExtras` alongside the existing agent/interpreter
+  routes.
+- TUI: `tui/src/screens/approvals.ts` polls the list every second and
+  lets the user approve (`a`)/deny (`d`) the selected request, showing
+  its full detail; added to the Ctrl+K palette.
+- **Scope note**: this is the single-PC "ask whoever is looking at a
+  Runyx UI right now" case from the Runyx Code mission's §9/§7. It
+  does *not* yet implement per-device scopes (view-only / can-approve-
+  edits / can-approve-commands) or the "require approval on this PC
+  for dangerous actions" override from §7 -- those need Remote
+  Control's device identity threaded through `Resolve`, which is C2
+  scope in `docs/RUNYX_CODE.md`, not part of finishing this pending
+  item.

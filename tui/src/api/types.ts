@@ -93,3 +93,16 @@ export interface ChatMessageIn {
   role: string;
   content: string;
 }
+
+// Mirrors internal/approval.Request (Go). A pending request awaiting a
+// human decision from whichever client is attached (TUI, web, or a
+// paired device). Hash binds the decision to this exact content.
+export interface ApprovalRequest {
+  id: string;
+  kind: string;
+  summary: string;
+  detail: string;
+  hash: string;
+  created_at: string;
+  expires_at: string;
+}

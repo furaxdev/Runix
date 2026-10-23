@@ -7,6 +7,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -37,8 +38,11 @@ func (r Request) String() string {
 // ApprovalFunc is asked, for a command not already covered by a
 // standing "always" approval, whether to run it and for how long to
 // remember the answer. Implemented by the UI/CLI — this package never
-// assumes consent.
-type ApprovalFunc func(Request) (allow bool, scope ApprovalScope)
+// assumes consent. ctx is the same context Execute was called with: an
+// implementation that blocks waiting for a human (e.g. an async
+// approval queue) must respect ctx.Done() rather than waiting forever
+// after the original request (e.g. the HTTP client) has gone away.
+type ApprovalFunc func(ctx context.Context, req Request) (allow bool, scope ApprovalScope)
 
 // Policy configures what the agent may ever consider running, before
 // approval is even asked.

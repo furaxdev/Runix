@@ -26,7 +26,7 @@ func (d *Daemon) NewHTTPServer() *http.Server {
 	apiServer.RegisterRunyx(mux, extras)
 	apiServer.RegisterKnowledge(mux, extras)
 
-	agentExtras := &api.AgentExtras{Agent: d.Agent, Interpreter: d.Interpreter}
+	agentExtras := &api.AgentExtras{Agent: d.Agent, Interpreter: d.Interpreter, Approvals: d.Approvals}
 	agentExtras.RegisterAgent(mux)
 
 	perms := &api.PermissionsCenter{

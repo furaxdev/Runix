@@ -72,7 +72,7 @@ func (a *Agent) Execute(ctx context.Context, command string, args []string, reas
 		return Result{}, err
 	}
 
-	allowed, scope := a.resolveApproval(req)
+	allowed, scope := a.resolveApproval(ctx, req)
 	if !allowed {
 		err := fmt.Errorf("command refused by user: %s", req.String())
 		a.audit(AuditEntry{Timestamp: time.Now(), Command: command, Args: args, Reason: reason, Approved: false, ApprovalBy: ApprovalDenied, Error: err.Error()})
@@ -130,7 +130,7 @@ func (a *Agent) Execute(ctx context.Context, command string, args []string, reas
 }
 
 // resolveApproval checks standing approvals before asking the user.
-func (a *Agent) resolveApproval(req Request) (bool, ApprovalScope) {
+func (a *Agent) resolveApproval(ctx context.Context, req Request) (bool, ApprovalScope) {
 	a.mu.Lock()
 	if a.alwaysApprovals[req.Reason] {
 		a.mu.Unlock()
@@ -145,7 +145,7 @@ func (a *Agent) resolveApproval(req Request) (bool, ApprovalScope) {
 	if a.Approve == nil {
 		return false, ApprovalDenied // no approval mechanism wired up: fail closed, never default-allow
 	}
-	allow, scope := a.Approve(req)
+	allow, scope := a.Approve(ctx, req)
 	if allow {
 		a.mu.Lock()
 		switch scope {

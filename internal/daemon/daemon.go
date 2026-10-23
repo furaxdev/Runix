@@ -5,11 +5,13 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os/exec"
 	"time"
 
 	"github.com/furaxdev/runyx/internal/agent"
+	"github.com/furaxdev/runyx/internal/approval"
 	"github.com/furaxdev/runyx/internal/automation"
 	"github.com/furaxdev/runyx/internal/backend"
 	"github.com/furaxdev/runyx/internal/config"
@@ -43,6 +45,14 @@ type Daemon struct {
 	// default, explicit opt-in" per §7.
 	Agent       *agent.Agent
 	Interpreter *interpreter.Interpreter
+
+	// Approvals is the pending-approval queue every irreversible
+	// action (shell commands today; Runyx Code's file/GitHub tools
+	// later) blocks on until a human decides, from whichever client
+	// is attached. Always set, even with Agent nil, so the HTTP API
+	// never 500s on it; Agent.Approve is only wired to it when the
+	// shell agent itself is enabled.
+	Approvals *approval.Queue
 
 	// Synthesizer is nil unless Piper is found on PATH.
 	Synthesizer *voice.Synthesizer
@@ -106,15 +116,9 @@ func New(cfg config.Config, backendBinary string) (*Daemon, error) {
 	d.Plugins = plugin.NewManager()
 	d.Scheduler = automation.NewScheduler()
 
+	d.Approvals = approval.NewQueue()
 	if cfg.AgentWorkDir != "" {
-		// No ApprovalFunc is wired here: the daemon has no synchronous
-		// way to prompt a human over HTTP yet (that needs a real
-		// pending-approval flow — see docs/BLOCKED.md). Until that
-		// lands, every command fails closed (refused) rather than ever
-		// defaulting to allowed; approvals can be granted by
-		// constructing *agent.Agent directly with a real ApprovalFunc
-		// (e.g. from a CLI prompt) instead of through this daemon path.
-		d.Agent = agent.New(agent.Policy{WorkDir: cfg.AgentWorkDir}, nil)
+		d.Agent = agent.New(agent.Policy{WorkDir: cfg.AgentWorkDir}, approvalAdapter(d.Approvals))
 		d.Agent.AuditLogDir = cfg.DataDir
 	}
 	if cfg.InterpreterWorkDir != "" {
@@ -122,6 +126,26 @@ func New(cfg config.Config, backendBinary string) (*Daemon, error) {
 	}
 
 	return d, nil
+}
+
+// approvalAdapter bridges internal/agent's ApprovalFunc to the
+// generic internal/approval queue: it submits a Request describing
+// the exact command, blocks until a human resolves it (or it expires,
+// or ctx is cancelled), and translates the result back to
+// agent.ApprovalScope. Scope is always "once" here (never "session"
+// or "always") because the approval queue has no notion of "this
+// reason, for the rest of the process" — agent.Agent itself already
+// remembers those on top of whatever this returns.
+func approvalAdapter(q *approval.Queue) agent.ApprovalFunc {
+	return func(ctx context.Context, req agent.Request) (bool, agent.ApprovalScope) {
+		detail := fmt.Sprintf("command: %s\nargs: %v\nworkdir: %s\nreason: %s", req.Command, req.Args, req.WorkDir, req.Reason)
+		areq := approval.NewRequest("command", req.String(), detail)
+		decision, err := q.Submit(ctx, areq)
+		if err != nil || !decision.Allow {
+			return false, agent.ApprovalDenied
+		}
+		return true, agent.ApprovalOnce
+	}
 }
 
 // StartEvictionLoop begins periodically evicting idle models until ctx is

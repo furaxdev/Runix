@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/furaxdev/runyx/internal/agent"
+	"github.com/furaxdev/runyx/internal/approval"
 	"github.com/furaxdev/runyx/internal/interpreter"
 )
 
@@ -16,13 +17,21 @@ import (
 type AgentExtras struct {
 	Agent       *agent.Agent
 	Interpreter *interpreter.Interpreter
+	// Approvals is the pending-approval queue backing Agent's
+	// ApprovalFunc (see internal/approval and daemon.New's wiring).
+	// Nil-safe: when nil, the approvals endpoints report 503 rather
+	// than panicking, same pattern as Agent/Interpreter above.
+	Approvals *approval.Queue
 }
 
-// RegisterAgent wires agent-shell and interpreter routes onto mux.
+// RegisterAgent wires agent-shell, interpreter, and pending-approval
+// routes onto mux.
 func (a *AgentExtras) RegisterAgent(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/runyx/agent/execute", a.handleExecute)
 	mux.HandleFunc("POST /api/runyx/agent/undo", a.handleUndo)
 	mux.HandleFunc("POST /api/runyx/interpreter/run", a.handleInterpreterRun)
+	mux.HandleFunc("GET /api/runyx/approvals", a.handleListApprovals)
+	mux.HandleFunc("POST /api/runyx/approvals/{id}/decide", a.handleDecideApproval)
 }
 
 func (a *AgentExtras) handleExecute(w http.ResponseWriter, r *http.Request) {
@@ -80,4 +89,49 @@ func (a *AgentExtras) handleInterpreterRun(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+// handleListApprovals returns every pending approval request, for the
+// TUI/web/paired-device UI to poll and show a human. Never includes
+// anything already resolved or expired.
+func (a *AgentExtras) handleListApprovals(w http.ResponseWriter, r *http.Request) {
+	if a.Approvals == nil {
+		writeError(w, http.StatusServiceUnavailable, jsonErr("no approval queue is configured"))
+		return
+	}
+	writeJSON(w, http.StatusOK, a.Approvals.List())
+}
+
+// handleDecideApproval answers one pending request. The hash in the
+// body must match the request's current Hash exactly -- Resolve fails
+// closed (never allows) on a mismatch, an unknown id, or an expired
+// request, so this handler just relays whatever approval.Queue decides
+// rather than second-guessing it.
+func (a *AgentExtras) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
+	if a.Approvals == nil {
+		writeError(w, http.StatusServiceUnavailable, jsonErr("no approval queue is configured"))
+		return
+	}
+	var req struct {
+		Hash  string
+		Allow bool
+		Scope string
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	scope := approval.Scope(req.Scope)
+	if scope == "" {
+		scope = approval.ScopeOnce
+	}
+	if !req.Allow {
+		scope = approval.ScopeDenied
+	}
+	id := r.PathValue("id")
+	if err := a.Approvals.Resolve(id, req.Hash, approval.Decision{Allow: req.Allow, Scope: scope}); err != nil {
+		writeError(w, http.StatusConflict, err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }

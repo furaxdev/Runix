@@ -21,7 +21,7 @@ func TestExecuteRunsApprovedCommandAndRecordsDiff(t *testing.T) {
 	requireGit(t)
 	dir := t.TempDir()
 
-	a := New(Policy{WorkDir: dir}, func(r Request) (bool, ApprovalScope) { return true, ApprovalOnce })
+	a := New(Policy{WorkDir: dir}, func(context.Context, Request) (bool, ApprovalScope) { return true, ApprovalOnce })
 	a.AuditLogDir = filepath.Join(dir, ".runyx-audit")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -55,7 +55,7 @@ func TestExecuteRunsApprovedCommandAndRecordsDiff(t *testing.T) {
 func TestExecuteRefusesWithoutApproval(t *testing.T) {
 	requireGit(t)
 	dir := t.TempDir()
-	a := New(Policy{WorkDir: dir}, func(r Request) (bool, ApprovalScope) { return false, ApprovalDenied })
+	a := New(Policy{WorkDir: dir}, func(context.Context, Request) (bool, ApprovalScope) { return false, ApprovalDenied })
 
 	_, err := a.Execute(context.Background(), "sh", []string{"-c", "echo nope > f.txt"}, "test")
 	if err == nil {
@@ -69,7 +69,7 @@ func TestExecuteRefusesWithoutApproval(t *testing.T) {
 func TestExecuteNeverAllowsSudo(t *testing.T) {
 	dir := t.TempDir()
 	calledApprove := false
-	a := New(Policy{WorkDir: dir}, func(r Request) (bool, ApprovalScope) {
+	a := New(Policy{WorkDir: dir}, func(context.Context, Request) (bool, ApprovalScope) {
 		calledApprove = true
 		return true, ApprovalOnce
 	})
@@ -84,7 +84,7 @@ func TestExecuteNeverAllowsSudo(t *testing.T) {
 
 func TestExecuteRefusesPathEscape(t *testing.T) {
 	dir := t.TempDir()
-	a := New(Policy{WorkDir: dir}, func(r Request) (bool, ApprovalScope) { return true, ApprovalOnce })
+	a := New(Policy{WorkDir: dir}, func(context.Context, Request) (bool, ApprovalScope) { return true, ApprovalOnce })
 	_, err := a.Execute(context.Background(), "cat", []string{"../../../etc/passwd"}, "read a file")
 	if err == nil {
 		t.Fatal("expected a path-escape refusal")
@@ -93,7 +93,7 @@ func TestExecuteRefusesPathEscape(t *testing.T) {
 
 func TestExecuteRespectsDenyPrefixes(t *testing.T) {
 	dir := t.TempDir()
-	a := New(Policy{WorkDir: dir, DenyPrefixes: []string{"curl", "wget"}}, func(r Request) (bool, ApprovalScope) { return true, ApprovalOnce })
+	a := New(Policy{WorkDir: dir, DenyPrefixes: []string{"curl", "wget"}}, func(context.Context, Request) (bool, ApprovalScope) { return true, ApprovalOnce })
 	_, err := a.Execute(context.Background(), "curl", []string{"http://example.com"}, "fetch")
 	if err == nil {
 		t.Fatal("expected curl to be denied by policy")
@@ -104,7 +104,7 @@ func TestSessionApprovalRemembersForSameReason(t *testing.T) {
 	requireGit(t)
 	dir := t.TempDir()
 	calls := 0
-	a := New(Policy{WorkDir: dir}, func(r Request) (bool, ApprovalScope) {
+	a := New(Policy{WorkDir: dir}, func(context.Context, Request) (bool, ApprovalScope) {
 		calls++
 		return true, ApprovalSession
 	})
@@ -122,7 +122,7 @@ func TestSessionApprovalRemembersForSameReason(t *testing.T) {
 func TestUndoRevertsToSnapshot(t *testing.T) {
 	requireGit(t)
 	dir := t.TempDir()
-	a := New(Policy{WorkDir: dir}, func(r Request) (bool, ApprovalScope) { return true, ApprovalOnce })
+	a := New(Policy{WorkDir: dir}, func(context.Context, Request) (bool, ApprovalScope) { return true, ApprovalOnce })
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()

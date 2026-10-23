@@ -6,6 +6,7 @@
 // cursor never detached" entry for why an unbounded, unwatched stream
 // is a real bug class, not just a demo-CI quirk.
 import type {
+  ApprovalRequest,
   ChatMessageIn,
   Conversation,
   DashboardStats,
@@ -106,6 +107,23 @@ export class RunyxClient {
 
   async revokeDevice(id: string): Promise<void> {
     const res = await fetch(this.url(`/api/runyx/permissions/devices/${id}`), { method: "DELETE" });
+    if (!res.ok) throw new ApiError(res.status, await res.text().catch(() => `HTTP ${res.status}`));
+  }
+
+  // --- pending approvals (shell commands today; Runyx Code's tools later) ---
+
+  async listApprovals(): Promise<ApprovalRequest[]> {
+    const res = await fetch(this.url("/api/runyx/approvals"));
+    return asJSON<ApprovalRequest[]>(res);
+  }
+
+  /** hash must match the request's current `hash` field exactly, or the daemon refuses the decision. */
+  async decideApproval(id: string, hash: string, allow: boolean): Promise<void> {
+    const res = await fetch(this.url(`/api/runyx/approvals/${id}/decide`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Hash: hash, Allow: allow }),
+    });
     if (!res.ok) throw new ApiError(res.status, await res.text().catch(() => `HTTP ${res.status}`));
   }
 

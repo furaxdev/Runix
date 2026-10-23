@@ -99,3 +99,32 @@ describe("RunyxClient JSON helpers", () => {
     }
   });
 });
+
+describe("RunyxClient approvals", () => {
+  test("listApprovals returns the pending array as-is", async () => {
+    const pending = [{ id: "a1", kind: "command", summary: "echo hi", detail: "echo hi", hash: "abc", created_at: "", expires_at: "" }];
+    globalThis.fetch = (async () => new Response(JSON.stringify(pending), { status: 200 })) as unknown as typeof fetch;
+    const client = new RunyxClient("http://127.0.0.1:11535");
+    expect(await client.listApprovals()).toEqual(pending);
+  });
+
+  test("decideApproval sends the hash and allow flag", async () => {
+    let capturedBody: any;
+    let capturedUrl = "";
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      capturedUrl = url;
+      capturedBody = JSON.parse(init!.body as string);
+      return new Response(null, { status: 200 });
+    }) as unknown as typeof fetch;
+    const client = new RunyxClient("http://127.0.0.1:11535");
+    await client.decideApproval("a1", "abc", true);
+    expect(capturedUrl).toBe("http://127.0.0.1:11535/api/runyx/approvals/a1/decide");
+    expect(capturedBody).toEqual({ Hash: "abc", Allow: true });
+  });
+
+  test("decideApproval throws ApiError on a non-OK response (e.g. hash mismatch)", async () => {
+    globalThis.fetch = (async () => new Response("conflict", { status: 409 })) as unknown as typeof fetch;
+    const client = new RunyxClient("http://127.0.0.1:11535");
+    await expect(client.decideApproval("a1", "wrong", true)).rejects.toBeInstanceOf(ApiError);
+  });
+});
