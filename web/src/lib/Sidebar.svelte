@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { fade } from "svelte/transition";
   import type { Conversation, Project } from "./api";
   import { api } from "./api";
   import Logo from "./Logo.svelte";
@@ -17,6 +18,9 @@
     Search,
     Star,
     SettingsIcon,
+    Pencil,
+    Check,
+    X,
   } from "./icons";
 
   export let view: "home" | "chat" | "models" | "agent" | "settings" | "pairing";
@@ -28,6 +32,70 @@
   export let onNew: () => void;
   export let onTogglePin: (id: string, pinned: boolean) => void;
   export let onOpenDownloads: () => void;
+  export let onRename: (id: string, title: string) => void;
+  export let reduceMotion = false;
+
+  // Easter egg 2/3: click the logo mark 7 times quickly and it spins
+  // once, with a one-line caption referencing the logo's own "motion"
+  // design intent (see Logo.svelte's comment) -- a wink, not a feature.
+  let logoClicks = 0;
+  let logoClickTimer: ReturnType<typeof setTimeout> | null = null;
+  let logoEgg = false;
+  let logoEggTimer: ReturnType<typeof setTimeout> | null = null;
+  let logoSpinning = false;
+
+  function onLogoClick() {
+    logoClicks++;
+    if (logoClickTimer) clearTimeout(logoClickTimer);
+    logoClickTimer = setTimeout(() => (logoClicks = 0), 1500);
+    if (logoClicks >= 7) {
+      logoClicks = 0;
+      if (!reduceMotion) {
+        logoSpinning = true;
+        setTimeout(() => (logoSpinning = false), 700);
+      }
+      logoEgg = true;
+      if (logoEggTimer) clearTimeout(logoEggTimer);
+      logoEggTimer = setTimeout(() => (logoEgg = false), 3000);
+    }
+  }
+
+  let renamingId: string | null = null;
+  let renameDraft = "";
+
+  function startRename(c: Conversation) {
+    renamingId = c.ID;
+    renameDraft = c.Title || c.Model || "";
+  }
+
+  function commitRename() {
+    const title = renameDraft.trim();
+    if (renamingId && title) onRename(renamingId, title);
+    renamingId = null;
+  }
+
+  function cancelRename() {
+    renamingId = null;
+  }
+
+  // Minimal Svelte action: focuses (and selects) an input the instant
+  // it's mounted, since autofocus on the <input> itself doesn't run
+  // reliably for an element that only exists conditionally behind
+  // {#if renamingId === c.ID}.
+  function focusOnMount(el: HTMLInputElement) {
+    el.focus();
+    el.select();
+  }
+
+  function onRenameKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitRename();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelRename();
+    }
+  }
 
   let collapsed = false;
   let search = "";
@@ -79,11 +147,16 @@
       {#if collapsed}
         <PanelLeftOpen size={17} aria-hidden="true" />
       {:else}
-        <Logo size={20} />
+        <span class="logo-click" class:spinning={logoSpinning} on:click|stopPropagation={onLogoClick} role="presentation">
+          <Logo size={20} />
+        </span>
         <span class="wordmark">Runyx</span>
         <PanelLeftClose size={16} aria-hidden="true" />
       {/if}
     </button>
+    {#if logoEgg}
+      <p class="logo-egg" transition:fade={{ duration: reduceMotion ? 0 : 160 }}>Fast by design. You found the proof.</p>
+    {/if}
   </div>
 
   <div class="tabs">
@@ -148,12 +221,31 @@
         <ul>
           {#each g.items as c}
             <li class:active={c.ID === activeId}>
-              <button class="title" on:click={() => onSelect(c.ID)}>
-                {c.Title || c.Model || "…"}
-              </button>
-              <button class="pin" title={c.Pinned ? "Unpin" : "Pin"} on:click={() => onTogglePin(c.ID, !c.Pinned)}>
-                <Star size={13} fill={c.Pinned ? "currentColor" : "none"} aria-hidden="true" />
-              </button>
+              {#if renamingId === c.ID}
+                <input
+                  class="rename-input"
+                  bind:value={renameDraft}
+                  on:keydown={onRenameKeydown}
+                  on:blur={commitRename}
+                  use:focusOnMount
+                />
+                <button class="pin" title="Save" aria-label="Save title" on:mousedown|preventDefault={commitRename}>
+                  <Check size={13} aria-hidden="true" />
+                </button>
+                <button class="pin" title="Cancel" aria-label="Cancel rename" on:mousedown|preventDefault={cancelRename}>
+                  <X size={13} aria-hidden="true" />
+                </button>
+              {:else}
+                <button class="title" on:click={() => onSelect(c.ID)} on:dblclick={() => startRename(c)}>
+                  {c.Title || c.Model || "…"}
+                </button>
+                <button class="pin rename" title="Rename" aria-label="Rename conversation" on:click={() => startRename(c)}>
+                  <Pencil size={12} aria-hidden="true" />
+                </button>
+                <button class="pin" title={c.Pinned ? "Unpin" : "Pin"} on:click={() => onTogglePin(c.ID, !c.Pinned)}>
+                  <Star size={13} fill={c.Pinned ? "currentColor" : "none"} aria-hidden="true" />
+                </button>
+              {/if}
             </li>
           {/each}
         </ul>
@@ -197,6 +289,31 @@
     flex: 1;
     text-align: left;
     font-weight: 600;
+  }
+  .logo-click {
+    display: inline-flex;
+    border-radius: var(--radius-sm);
+  }
+  .logo-click.spinning {
+    animation: runyx-spin-y 0.7s var(--ease-fluid);
+  }
+  @keyframes runyx-spin-y {
+    from {
+      transform: rotate(0deg) scale(1);
+    }
+    50% {
+      transform: rotate(180deg) scale(1.15);
+    }
+    to {
+      transform: rotate(360deg) scale(1);
+    }
+  }
+  .logo-egg {
+    margin: 0;
+    padding: 0.15rem 0.75rem 0.4rem;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-style: italic;
   }
   .tabs {
     display: flex;
@@ -345,6 +462,25 @@
     border: none;
     color: var(--text-muted);
     padding: 0.4rem;
+    flex: 0 0 auto;
+  }
+  li .rename {
+    opacity: 0;
+  }
+  li:hover .rename {
+    opacity: 1;
+  }
+  .rename-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 0.4rem 0.5rem;
+    margin: 0.1rem 0.2rem;
+    color: var(--text);
+    font-size: 0.86rem;
+    outline: none;
   }
   @media (max-width: 760px) {
     nav {

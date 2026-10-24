@@ -124,6 +124,19 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ Pinned: pinned }),
     }),
+  rename: (id: string, title: string) =>
+    fetch(`/api/runyx/conversations/${id}/rename`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Title: title }),
+    }).then((r) => {
+      if (!r.ok) throw new Error(`rename failed: HTTP ${r.status}`);
+    }),
+  exportConversation: (id: string, format: "markdown" | "json" = "markdown") =>
+    fetch(`/api/runyx/conversations/${id}/export?format=${format}`).then(async (r) => {
+      if (!r.ok) throw new Error(`export failed: HTTP ${r.status}`);
+      return r.text();
+    }),
   search: (q: string) => fetch(`/api/runyx/search?q=${encodeURIComponent(q)}`).then((r) => json<Message[]>(r)),
   dashboard: () => fetch("/api/runyx/dashboard").then((r) => json<DashboardStats>(r)),
   models: () => fetch("/v1/models").then((r) => json<{ data: { id: string }[] }>(r)),

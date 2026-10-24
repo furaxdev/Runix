@@ -12,6 +12,9 @@
   import Pairing from "./lib/Pairing.svelte";
   import Settings from "./lib/Settings.svelte";
   import Agent from "./lib/Agent.svelte";
+  import SearchMessages from "./lib/SearchMessages.svelte";
+  import ShortcutsHelp from "./lib/ShortcutsHelp.svelte";
+  import EasterEggToast from "./lib/EasterEggToast.svelte";
 
   type View = "home" | "chat" | "models" | "pairing" | "settings" | "agent";
   let view: View = "home";
@@ -26,6 +29,27 @@
   let registryModels: RegistryModel[] = [];
   let currentModel = "";
   let paletteOpen = false;
+  let searchOpen = false;
+  let shortcutsOpen = false;
+
+  // Keeps the three overlays mutually exclusive -- opening one closes
+  // whichever other was already open, rather than letting them stack
+  // (the Shortcuts modal has no visible scrim gap for Search to sit
+  // behind, so a stray Ctrl+Shift+F while Ctrl+/ was still up would
+  // otherwise leave two overlays showing at once).
+  function openOverlay(which: "palette" | "search" | "shortcuts" | null) {
+    paletteOpen = which === "palette";
+    searchOpen = which === "search";
+    shortcutsOpen = which === "shortcuts";
+  }
+  let eggMessage = "";
+  let eggTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function showEgg(message: string) {
+    eggMessage = message;
+    if (eggTimer) clearTimeout(eggTimer);
+    eggTimer = setTimeout(() => (eggMessage = ""), 4000);
+  }
 
   function safeGet(k: string): string | null {
     try {
@@ -99,9 +123,42 @@
     await refreshConversations();
   }
 
+  async function renameConversation(id: string, title: string) {
+    await api.rename(id, title).catch((err) => alert(`Rename failed: ${err}`));
+    await refreshConversations();
+  }
+
   function onTab(v: "home" | "models" | "agent") {
     view = v;
     if (v === "home" && activeId) view = "chat";
+  }
+
+  async function onSearchJump(conversationId: string) {
+    await selectConversation(conversationId);
+  }
+
+  // Easter egg 1/3: the Konami code. A harmless nod for anyone who
+  // still has it in their fingers -- no gameplay effect, just a toast
+  // and (motion allowed) a brief accent-colored pulse around the app.
+  const KONAMI = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
+  let konamiProgress = 0;
+  let konamiPulse = false;
+
+  function checkKonami(key: string) {
+    const want = KONAMI[konamiProgress];
+    if (key.toLowerCase() === want?.toLowerCase()) {
+      konamiProgress++;
+      if (konamiProgress === KONAMI.length) {
+        konamiProgress = 0;
+        showEgg("Secret unlocked. You have excellent taste in keyboard shortcuts.");
+        if (!reduceMotion) {
+          konamiPulse = true;
+          setTimeout(() => (konamiPulse = false), 900);
+        }
+      }
+    } else {
+      konamiProgress = key.toLowerCase() === KONAMI[0]?.toLowerCase() ? 1 : 0;
+    }
   }
 
   onMount(async () => {
@@ -112,10 +169,32 @@
     setInterval(refreshRegistry, 10000);
 
     window.addEventListener("keydown", (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        paletteOpen = true;
+        openOverlay("palette");
+        return;
       }
+      if (mod && e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        openOverlay("search");
+        return;
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        newConversation();
+        return;
+      }
+      if (mod && e.key === "/") {
+        e.preventDefault();
+        openOverlay("shortcuts");
+        return;
+      }
+      // Konami code only fires outside text inputs -- otherwise typing
+      // the letters "b"/"a" while composing a message would eat input.
+      const target = e.target as HTMLElement | null;
+      const typing = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable;
+      if (!typing && !mod) checkKonami(e.key);
     });
 
     // Without this, dropping a file anywhere outside the Composer's own
@@ -130,6 +209,8 @@
 
   $: commands = [
     { label: t(lang, "newChat"), run: newConversation },
+    { label: "Search messages", run: () => openOverlay("search") },
+    { label: "Keyboard shortcuts", run: () => openOverlay("shortcuts") },
     { label: `${t(lang, "theme")}: ${t(lang, "light")}`, run: () => setTheme("light") },
     { label: `${t(lang, "theme")}: ${t(lang, "dark")}`, run: () => setTheme("dark") },
     { label: `${t(lang, "theme")}: ${t(lang, "system")}`, run: () => setTheme("system") },
@@ -150,7 +231,7 @@
   $: viewFadeDuration = reduceMotion ? 0 : 160;
 </script>
 
-<div class="app">
+<div class="app" class:konami-pulse={konamiPulse}>
   <Sidebar
     {view}
     {onTab}
@@ -164,6 +245,8 @@
     }}
     onTogglePin={togglePin}
     onOpenDownloads={() => (view = "models")}
+    onRename={renameConversation}
+    {reduceMotion}
   />
 
   <main>
@@ -176,6 +259,7 @@
         <div class="view-fade" in:fade={{ duration: viewFadeDuration }}>
           <Chat
             conversationId={activeId}
+            conversationTitle={conversations.find((c) => c.ID === activeId)?.Title ?? ""}
             model={currentModel}
             {messages}
             onMessagesChanged={refreshMessages}
@@ -213,6 +297,9 @@
 </div>
 
 <CommandPalette {lang} bind:open={paletteOpen} {commands} {reduceMotion} />
+<SearchMessages bind:open={searchOpen} {conversations} onJump={onSearchJump} {reduceMotion} />
+<ShortcutsHelp bind:open={shortcutsOpen} {reduceMotion} />
+<EasterEggToast message={eggMessage} {reduceMotion} />
 
 <style>
   .app {
@@ -220,6 +307,21 @@
     height: 100vh;
     width: 100vw;
     overflow: hidden;
+    box-shadow: inset 0 0 0 0 var(--accent);
+  }
+  .app.konami-pulse {
+    animation: runyx-konami-pulse 0.9s var(--ease-fluid);
+  }
+  @keyframes runyx-konami-pulse {
+    0% {
+      box-shadow: inset 0 0 0 0 var(--accent);
+    }
+    30% {
+      box-shadow: inset 0 0 0 4px var(--accent);
+    }
+    100% {
+      box-shadow: inset 0 0 0 0 var(--accent);
+    }
   }
   main {
     flex: 1;

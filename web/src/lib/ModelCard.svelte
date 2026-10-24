@@ -2,7 +2,7 @@
   import type { RegistryModel } from "./api";
   import { activeDownloads } from "./downloads";
   import Badges from "./Badges.svelte";
-  import { Download, Pause, Trash2, Check } from "./icons";
+  import { Download, Pause, Trash2, Check, modelFamilyIcon } from "./icons";
 
   export let m: RegistryModel;
   export let onUse: (pullSpec: string) => void;
@@ -33,6 +33,9 @@
 <div class="card">
   <div class="card-main">
     <div class="card-title-row">
+      <span class="family-icon" title={m.family || m.publisher}>
+        <svelte:component this={modelFamilyIcon(m.family || m.name)} size={16} aria-hidden="true" />
+      </span>
       <span class="name">{m.name}</span>
       <span class="publisher">{m.publisher}</span>
     </div>
@@ -93,6 +96,12 @@
     align-items: baseline;
     gap: 0.5rem;
     margin-bottom: 0.3rem;
+  }
+  .family-icon {
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    flex: 0 0 auto;
   }
   .name {
     font-weight: 600;

@@ -59,6 +59,12 @@ func (s *Store) SetFolder(conversationID, folder string) error {
 	return err
 }
 
+// Rename sets a conversation's title.
+func (s *Store) Rename(conversationID, title string) error {
+	_, err := s.db.Exec(`UPDATE conversations SET title = ? WHERE id = ?`, title, conversationID)
+	return err
+}
+
 // AddMessage appends a message to a branch of a conversation and bumps
 // the conversation's updated_at.
 func (s *Store) AddMessage(conversationID, parentID, branchID, role, content string) (Message, error) {
