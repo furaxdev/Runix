@@ -207,8 +207,10 @@
     color: var(--accent-contrast);
   }
   .msg.assistant .bubble {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
+    max-width: 100%;
+    padding: 0;
+    background: none;
+    border: none;
   }
   .cursor {
     opacity: 0.5;
