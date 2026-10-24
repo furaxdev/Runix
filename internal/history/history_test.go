@@ -1,9 +1,28 @@
 package history
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestOpenDatabaseFileIsNotWorldReadable(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer s.Close()
+
+	info, err := os.Stat(filepath.Join(dir, "runyx.db"))
+	if err != nil {
+		t.Fatalf("stat runyx.db: %v", err)
+	}
+	if info.Mode().Perm()&0o077 != 0 {
+		t.Errorf("runyx.db mode = %v, expected no group/other permission bits (it holds every conversation the user has had)", info.Mode().Perm())
+	}
+}
 
 func TestConversationAndMessages(t *testing.T) {
 	s, err := Open(t.TempDir())

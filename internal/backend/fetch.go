@@ -8,6 +8,8 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -41,10 +43,16 @@ var releaseByTagAPI = func(tag string) string {
 const nightlyTagAssetName = "nightly-tag.txt"
 
 // ghAsset mirrors the subset of GitHub's release-asset JSON we need.
+// Digest, when GitHub's API reports one, is "sha256:<hex>" of the
+// exact asset bytes -- verified against the download when present (not
+// every asset on every repo has one; llama.cpp's don't appear to as of
+// writing, but this costs nothing and activates automatically if that
+// ever changes upstream).
 type ghAsset struct {
 	Name               string `json:"name"`
 	BrowserDownloadURL string `json:"browser_download_url"`
 	Size               int64  `json:"size"`
+	Digest             string `json:"digest"`
 }
 
 type ghRelease struct {
@@ -162,7 +170,16 @@ func (f *Fetcher) Ensure(ctx context.Context, info hwdetect.Info, onProgress dow
 	destDir := filepath.Join(f.Dir, fmt.Sprintf("%s-%s-%s", release.TagName, info.OS, info.Arch))
 	binPath := filepath.Join(destDir, serverBinaryName())
 	if _, err := os.Stat(binPath); err == nil {
-		return binPath, nil // already cached
+		// Existing on disk only proves a file is there, not that it's
+		// the one this Fetcher put there untouched -- verify it against
+		// the hash recorded at extraction time before trusting it as a
+		// subprocess binary. A mismatch (tampering, disk corruption, a
+		// hand-placed substitute) is treated as "not actually cached":
+		// fall through and re-download/re-extract rather than silently
+		// execute something unverified.
+		if verifyOrPinBinary(binPath) {
+			return binPath, nil // already cached, and verified
+		}
 	}
 
 	archivePath := filepath.Join(f.Dir, asset.Name)
@@ -175,6 +192,12 @@ func (f *Fetcher) Ensure(ctx context.Context, info hwdetect.Info, onProgress dow
 	}
 	defer os.Remove(archivePath)
 
+	if asset.Digest != "" {
+		if err := verifyDigest(archivePath, asset.Digest); err != nil {
+			return "", fmt.Errorf("downloaded archive %s failed integrity check: %w", asset.Name, err)
+		}
+	}
+
 	if err := extractServerBinary(archivePath, destDir); err != nil {
 		return "", fmt.Errorf("extract %s: %w", asset.Name, err)
 	}
@@ -186,7 +209,85 @@ func (f *Fetcher) Ensure(ctx context.Context, info hwdetect.Info, onProgress dow
 	if strings.TrimSpace(os.Getenv(SafeCPUKernelEnv)) != "" {
 		pruneToBaselineCPUKernel(destDir, info)
 	}
+	// Record this freshly-extracted binary's hash so future runs (the
+	// os.Stat fast path above, and anyCachedBinary's offline fallback)
+	// can tell "still the file we wrote" from "something changed since".
+	if err := pinBinary(binPath); err != nil {
+		return "", fmt.Errorf("pin extracted binary: %w", err)
+	}
 	return binPath, nil
+}
+
+// sha256Hex returns the lowercase hex SHA-256 of a file's contents.
+func sha256Hex(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// pinHashPath is the sidecar file recording binPath's expected SHA-256,
+// written once right after extraction/chmod (i.e. before the binary is
+// ever trusted or executed).
+func pinHashPath(binPath string) string {
+	return binPath + ".sha256"
+}
+
+// pinBinary records binPath's current SHA-256 to its sidecar file.
+func pinBinary(binPath string) error {
+	sum, err := sha256Hex(binPath)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(pinHashPath(binPath), []byte(sum), 0o644)
+}
+
+// verifyOrPinBinary reports whether binPath's current contents match
+// its previously-pinned hash. A binary from before this check existed
+// (no sidecar file yet) is pinned now rather than rejected outright --
+// this is a hash recorded by Runyx itself, not an upstream-issued
+// signature, so its guarantee is "unchanged since Runyx last wrote it",
+// not "came from a trusted publisher"; a pre-existing install has no
+// prior pin to compare against, and refusing to start over that
+// distinction would be a regression for every existing user, not a
+// security improvement. Once pinned, any later change — the actual
+// threat this guards against — is caught.
+func verifyOrPinBinary(binPath string) bool {
+	sidecar := pinHashPath(binPath)
+	recorded, err := os.ReadFile(sidecar)
+	if err != nil {
+		// No prior pin: trust-on-first-use, establish one now.
+		return pinBinary(binPath) == nil
+	}
+	current, err := sha256Hex(binPath)
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(recorded)) == current
+}
+
+// verifyDigest checks path's SHA-256 against a GitHub-style
+// "sha256:<hex>" digest string.
+func verifyDigest(path, digest string) error {
+	const prefix = "sha256:"
+	if !strings.HasPrefix(digest, prefix) {
+		return nil // an unrecognized digest algorithm isn't a failure, just not checked
+	}
+	want := strings.TrimPrefix(digest, prefix)
+	got, err := sha256Hex(path)
+	if err != nil {
+		return err
+	}
+	if got != want {
+		return fmt.Errorf("sha256 mismatch: got %s, want %s", got, want)
+	}
+	return nil
 }
 
 // SafeCPUKernelEnv, when set to a non-empty value, makes Ensure() delete
@@ -272,7 +373,7 @@ func (f *Fetcher) anyCachedBinary(info hwdetect.Info) (string, bool) {
 		}
 		binPath := filepath.Join(f.Dir, e.Name(), serverBinaryName())
 		fi, err := os.Stat(binPath)
-		if err != nil {
+		if err != nil || !verifyOrPinBinary(binPath) {
 			continue
 		}
 		if mod := fi.ModTime().Unix(); best == "" || mod > bestMod {

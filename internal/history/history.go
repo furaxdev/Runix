@@ -6,6 +6,7 @@ package history
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -37,6 +38,19 @@ func Open(dataDir string) (*Store, error) {
 	if err := s.migrateRAG(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate rag: %w", err)
+	}
+	// This database holds every conversation the user has ever had --
+	// the single most sensitive file this package touches. The sqlite
+	// driver creates it with the process's default umask-derived mode
+	// (typically world-readable, 0644), not anything secret-appropriate;
+	// tighten it explicitly, same as daemon.TokenStore's devices.json
+	// and the shell agent's audit.jsonl. Covers the WAL/SHM sidecar
+	// files too, which journal_mode=WAL creates alongside the main one
+	// and which transiently hold the same data. Best-effort: a failure
+	// here (e.g. a filesystem that doesn't support Unix permissions)
+	// doesn't block opening the database.
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		_ = os.Chmod(path+suffix, 0o600)
 	}
 	return s, nil
 }
