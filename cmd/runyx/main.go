@@ -93,6 +93,7 @@ Usage:
   runyx tune <model>           Compute and cache tuning params for a model
   runyx pull <repo>[:file]      Download a GGUF model from Hugging Face
   runyx run <model>            Chat with a model (pulling if needed)
+  runyx run <model> --selftest  Ask one answer-checkable question and report pass/fail, no chat loop
   runyx list                  List installed models
   runyx show <model>           Show details about an installed model
   runyx rm <model>             Remove an installed model

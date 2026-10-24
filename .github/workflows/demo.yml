@@ -27,26 +27,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      MODEL_SPEC: "Qwen/Qwen2.5-0.5B-Instruct-GGUF"
+      # Was Qwen/Qwen2.5-0.5B-Instruct-GGUF. A dedicated isolation
+      # workflow (.github/workflows/demo-diagnose.yml, see its run
+      # output linked from docs/DECISIONS.md) proved this quant
+      # produces garbled multilingual output on real GitHub runners in
+      # every variant tested: pruned and unpruned CPU kernel, default
+      # and --jinja chat template. The earlier "AMD-EPYC CPU-kernel
+      # correctness bug" theory below was the wrong diagnosis — the
+      # same matrix run showed Llama-3.2-1B-Instruct answering "4" to
+      # "What is 2+2?" correctly in both pruned and unpruned variants,
+      # on the same runner, in the same job. Switched the demo to the
+      # model that's actually proven to work here.
+      MODEL_SPEC: "bartowski/Llama-3.2-1B-Instruct-GGUF"
       RUNYX_HOME: ${{ github.workspace }}/.runyx-demo
       LISTEN_ADDR: "0.0.0.0:11535"
       # Pin the llama.cpp build instead of always following "latest":
       # upstream has no separate "stable" channel (every release is a
-      # continuous-build nightly), and a real run on a GitHub-hosted
-      # AMD EPYC 7763 runner hit a CPU-kernel correctness bug in
-      # b11669 — the exact same model + build gave a coherent reply on
-      # an Intel runner but endless multilingual gibberish on that AMD
-      # one (ggml-cpu auto-dispatches to a per-microarchitecture .so at
-      # runtime, so the bug is CPU-specific). See docs/DECISIONS.md.
-      # Bump this deliberately (not blindly) if it needs updating.
+      # continuous-build nightly). Bump this deliberately (not
+      # blindly) if it needs updating.
       RUNYX_LLAMA_CPP_TAG: "b11836"
-      # The pin alone didn't fix it: b11836 hit the exact same bug on
-      # another AMD EPYC 7763 runner, so it isn't one bad build. Also
-      # force llama.cpp's own loader down to the lowest-common-
-      # denominator CPU kernel (see pruneToBaselineCPUKernel in
-      # internal/backend/fetch.go) so the higher-scoring, apparently
-      # broken-on-this-CPU variant never gets picked at all, trading
-      # its speed for correctness — acceptable for a 0.5B demo model.
+      # No longer known to be necessary now that the demo model itself
+      # was the actual cause (see MODEL_SPEC's comment above) rather
+      # than CPU-kernel selection — kept on anyway since it's a no-cost
+      # safety margin for a small demo model, not because it's load-
+      # bearing for correctness anymore.
       RUNYX_LLAMA_CPP_SAFE_CPU_KERNEL: "1"
     steps:
       - uses: actions/checkout@v4
@@ -116,7 +120,7 @@ jobs:
           # — the "skip if already in `runyx list`" step below means a
           # cache hit otherwise persists whatever was first pulled here
           # forever, unaffected by later code changes.
-          key: runyx-demo-model-qwen2.5-0.5b-v2
+          key: runyx-demo-model-llama32-1b-v1
 
       # Every step below pipes to `tee`, and the default `bash -e` shell
       # only checks the exit status of the last command in a pipeline —
@@ -142,6 +146,18 @@ jobs:
           else
             ./runyx pull "$MODEL_SPEC" | tee demo-output/terminal/03-pull.txt
           fi
+
+      # Catches exactly the failure mode that made the demo's earlier
+      # Qwen2.5-0.5B pairing look "fixed" once the Playwright timeout
+      # was resolved: the CLI starts, a stream of tokens comes back,
+      # and it's still garbled nonsense. "What is 2+2?" at temperature
+      # 0 has one knowable correct answer, so this step fails loudly
+      # instead of a human having to notice broken prose in a
+      # screenshot.
+      - name: Terminal demo — self-test (answer-checkable prompt)
+        run: |
+          set -o pipefail
+          ./runyx run "$MODEL_SPEC" --selftest | tee demo-output/terminal/04-selftest.txt
 
       - name: Terminal demo — run (real model, real reply)
         run: |

@@ -45,6 +45,14 @@ type Recommendation struct {
 // defaultCatalog is a small, curated list of well-known instruction models
 // spanning sizes, used until live Hugging Face search (M1 `pull`) replaces
 // it as the default recommendation source.
+//
+// Flagged, not removed: the default Q4_K_M pull of
+// Qwen/Qwen2.5-0.5B-Instruct-GGUF was proven to produce garbled
+// multilingual output (not a crash) in a 5-way CI isolation matrix —
+// see docs/DECISIONS.md's "llama.cpp build pinning" entry's
+// Correction. Not checked against this repo's other quantizations, so
+// left in the catalog rather than guessed-removed; `runyx run <model>
+// --selftest` is the fastest way to re-verify a given pull.
 var defaultCatalog = []ModelCandidate{
 	{Name: "Qwen2.5 0.5B Instruct", Repo: "Qwen/Qwen2.5-0.5B-Instruct-GGUF", ParamsB: 0.5},
 	{Name: "Llama 3.2 3B Instruct", Repo: "meta-llama/Llama-3.2-3B-Instruct-GGUF", ParamsB: 3},

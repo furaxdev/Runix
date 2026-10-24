@@ -7,9 +7,12 @@ at the end of every milestone.
 ## After M1/M2 (do these first)
 
 1. **Real llama.cpp backend fetch + run**: on a normal machine (not this
-   sandbox), run `runyx doctor` then `runyx run Qwen/Qwen2.5-0.5B-Instruct-GGUF`.
-   Confirm it downloads a real `llama-server` build and you get an actual
-   chat response.
+   sandbox), run `runyx doctor` then `runyx run bartowski/Llama-3.2-1B-Instruct-GGUF`.
+   Confirm it downloads a real `llama-server` build and you get an actual,
+   readable chat response (`runyx run <model> --selftest` gives a quick
+   pass/fail on this without reading prose yourself — see
+   docs/DECISIONS.md's note on the Qwen2.5-0.5B demo model that looked
+   fine but wasn't).
 2. **Multi-model + idle eviction**: `runyx pull` two small models, load
    both via two concurrent chats (or two `/v1/chat/completions` calls),
    confirm both stay loaded, then wait past `idle_unload_seconds` (config)

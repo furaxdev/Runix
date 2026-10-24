@@ -216,6 +216,36 @@ with a real, curated model catalog.
   Off by default (normal `runyx` keeps full CPU-optimized performance);
   `demo.yml` opts in, trading speed for a 0.5B demo model where it
   doesn't matter.
+  **Correction**: the CPU-kernel theory above was wrong. A dedicated
+  isolation workflow (`.github/workflows/demo-diagnose.yml`) ran the
+  same prompt (`"What is 2+2? Answer with one word."`, temperature 0)
+  against `llama-server` directly, bypassing Runyx's daemon entirely,
+  across a 5-way matrix: Qwen2.5-0.5B-Instruct-GGUF Q4_K_M with the
+  CPU kernel pruned, unpruned, and unpruned-with-`--jinja`, plus
+  Llama-3.2-1B-Instruct-GGUF Q4_K_M pruned and unpruned, all on the
+  same real GitHub Actions AMD EPYC runner in the same job
+  ([run 40080651797](https://github.com/furaxdev/Runyx/actions/runs/40080651797)).
+  Every Qwen2.5-0.5B variant — pruned, unpruned, and with the Jinja
+  chat template — produced the exact same garbled multilingual output.
+  Both Llama-3.2-1B variants answered correctly ("4") in under a
+  second. Since the *same* CPU, *same* llama-server build, and *same*
+  kernel-pruning state produced a correct answer for one model and
+  garbage for another, the kernel selection was never the actual
+  cause — it's specific to this Qwen2.5-0.5B-Instruct-GGUF Q4_K_M file
+  (quant artifact or a chat-template/tokenizer mismatch; not narrowed
+  further). Switched `demo.yml`'s `MODEL_SPEC` to
+  `bartowski/Llama-3.2-1B-Instruct-GGUF`, the model actually proven to
+  work, and added `runyx run <model> --selftest` (asks this same
+  answer-checkable question once, exits non-zero if the reply doesn't
+  contain "4"/"four") plus a demo CI step that runs it, so a broken
+  model/build pairing fails the pipeline loudly instead of only
+  showing up as unreadable prose in a screenshot a human has to notice.
+  `RUNYX_LLAMA_CPP_SAFE_CPU_KERNEL` is kept on in `demo.yml` anyway as
+  a no-cost margin, but is no longer believed to be load-bearing for
+  correctness. The small-model entry in `internal/hwdetect/recommend.go`
+  still lists `Qwen/Qwen2.5-0.5B-Instruct-GGUF` since this hasn't been
+  checked against every quantization of that repo, only the default
+  pull's `Q4_K_M` — flagged there for whoever investigates next.
 - **Chat CLI hang safety net** (`cmd/runyx/cmd_run.go`): the interactive
   `runyx run` chat loop had no HTTP client timeout and no cap on reply
   length, so a runaway generation (as above) hung the CLI forever with

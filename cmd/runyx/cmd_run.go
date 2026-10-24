@@ -19,12 +19,22 @@ import (
 
 // cmdRun pulls the model if needed, loads it via an in-process backend
 // manager, and drops into an interactive chat loop against its
-// llama-server instance.
+// llama-server instance. "runyx run <model> --selftest" skips the
+// interactive loop and instead asks a fixed, answer-checkable question
+// once, so a broken model/build pairing (garbled multilingual output,
+// not a crash -- see docs/DECISIONS.md's AMD-EPYC demo gibberish entry)
+// is caught before anyone assumes "it started, so it must be working."
 func cmdRun(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("usage: runyx run <model>")
+		return fmt.Errorf("usage: runyx run <model> [--selftest]")
 	}
 	name := args[0]
+	selftest := false
+	for _, a := range args[1:] {
+		if a == "--selftest" {
+			selftest = true
+		}
+	}
 
 	cfg, store, err := loadStore()
 	if err != nil {
@@ -75,9 +85,80 @@ func cmdRun(args []string) error {
 	if err != nil {
 		return fmt.Errorf("start model: %w", err)
 	}
+	if selftest {
+		return selfTest(inst.BaseURL, mdl.Name)
+	}
+
 	fmt.Printf("Ready. Chatting with %s. Type /exit to quit.\n\n", mdl.Name)
 
 	return chatLoop(inst.BaseURL, mdl.Name)
+}
+
+// selfTestPrompt and selfTestWords: a question whose correct answer is
+// known ahead of time and narrow enough to check for by substring,
+// unlike an open-ended "explain what you are" demo prompt. temperature
+// 0 so the same build+model always produces the same tokens, making a
+// flake-vs-genuine-break distinction possible across repeated runs.
+const selfTestPrompt = "What is 2+2? Answer with one word."
+
+var selfTestWords = []string{"4", "four"}
+
+// selfTest sends selfTestPrompt once and reports whether the reply
+// contains an expected answer, never dropping into the interactive
+// loop. Returns a non-nil error on anything that would otherwise look
+// like a silent success to a script checking only the exit code: no
+// reply, a request error, or an answer that doesn't contain "4"/"four".
+func selfTest(baseURL, modelName string) error {
+	fmt.Printf("Self-test: asking %q (temperature 0, max_tokens 16)...\n", selfTestPrompt)
+	client := &http.Client{Timeout: chatRequestTimeout}
+	body, _ := json.Marshal(map[string]any{
+		"model":       modelName,
+		"messages":    []chatMsg{{Role: "user", Content: selfTestPrompt}},
+		"stream":      false,
+		"max_tokens":  16,
+		"temperature": 0,
+	})
+	resp, err := client.Post(baseURL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("self-test request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var parsed struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return fmt.Errorf("self-test: decode response: %w", err)
+	}
+	if len(parsed.Choices) == 0 {
+		return fmt.Errorf("self-test: no choices in response")
+	}
+	reply := parsed.Choices[0].Message.Content
+	fmt.Printf("Reply: %q\n", reply)
+
+	if selfTestReplyOK(reply) {
+		fmt.Println("Self-test PASSED: reply contains an expected answer.")
+		return nil
+	}
+	return fmt.Errorf("self-test FAILED: reply %q does not contain %v -- the model/build pairing is producing unreadable or wrong output", reply, selfTestWords)
+}
+
+// selfTestReplyOK reports whether reply contains one of selfTestWords,
+// case-insensitively. Split out from selfTest so the matching logic
+// (the part actually worth unit-testing) doesn't require a running
+// backend.
+func selfTestReplyOK(reply string) bool {
+	lower := strings.ToLower(reply)
+	for _, want := range selfTestWords {
+		if strings.Contains(lower, want) {
+			return true
+		}
+	}
+	return false
 }
 
 type chatMsg struct {

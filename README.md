@@ -17,8 +17,9 @@ go build -o runyx ./cmd/runyx
 
 ./runyx doctor                 # hardware detection
 ./runyx recommend               # models that actually fit this machine
-./runyx pull Qwen/Qwen2.5-0.5B-Instruct-GGUF   # download a model
-./runyx run Qwen/Qwen2.5-0.5B-Instruct-GGUF    # chat from the terminal
+./runyx pull bartowski/Llama-3.2-1B-Instruct-GGUF   # download a model
+./runyx run bartowski/Llama-3.2-1B-Instruct-GGUF    # chat from the terminal
+./runyx run bartowski/Llama-3.2-1B-Instruct-GGUF --selftest  # one answer-checkable sanity check
 ./runyx serve                  # start the daemon + HTTP API + web UI
 ```
 
