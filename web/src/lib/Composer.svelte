@@ -26,6 +26,11 @@
   let recording = false;
   let mediaRecorder: MediaRecorder | null = null;
   let recordedChunks: Blob[] = [];
+  let dragging = false;
+  // Counts nested dragenter/dragleave pairs (the browser fires these on
+  // every child element the pointer crosses) so the drop highlight
+  // doesn't flicker off while still dragging over a child node.
+  let dragDepth = 0;
 
   $: hasContent = input.trim().length > 0 || pendingAttachments.length > 0;
 
@@ -37,10 +42,8 @@
     textareaEl.style.height = `${Math.min(textareaEl.scrollHeight, maxHeight)}px`;
   }
 
-  async function onFilePicked(e: Event) {
-    const files = (e.target as HTMLInputElement).files;
-    if (!files) return;
-    for (const f of Array.from(files)) {
+  async function addFiles(files: Iterable<File>) {
+    for (const f of files) {
       try {
         const res = await api.uploadAttachment(f);
         pendingAttachments = [...pendingAttachments, res];
@@ -48,7 +51,42 @@
         alert(`${f.name}: ${err}`);
       }
     }
+  }
+
+  async function onFilePicked(e: Event) {
+    const files = (e.target as HTMLInputElement).files;
+    if (!files) return;
+    await addFiles(files);
     fileInput.value = "";
+  }
+
+  function onDragEnter(e: DragEvent) {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    dragDepth++;
+    dragging = true;
+  }
+
+  function onDragOver(e: DragEvent) {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }
+
+  function onDragLeave(e: DragEvent) {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) dragging = false;
+  }
+
+  async function onDrop(e: DragEvent) {
+    e.preventDefault();
+    dragDepth = 0;
+    dragging = false;
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+    await addFiles(files);
   }
 
   async function toggleRecording() {
@@ -99,7 +137,19 @@
   }
 </script>
 
-<div class="composer">
+<div
+  class="composer"
+  class:dragging
+  role="group"
+  aria-label="Message composer, drop a file here to attach it"
+  on:dragenter={onDragEnter}
+  on:dragover={onDragOver}
+  on:dragleave={onDragLeave}
+  on:drop={onDrop}
+>
+  {#if dragging}
+    <div class="drop-overlay">Drop to attach</div>
+  {/if}
   {#if pendingAttachments.length > 0}
     <div class="chips">
       {#each pendingAttachments as a}
@@ -160,6 +210,7 @@
 
 <style>
   .composer {
+    position: relative;
     max-width: 720px;
     width: 100%;
     margin: 0 auto;
@@ -168,10 +219,28 @@
     border-radius: 24px;
     padding: 0.55rem 0.6rem 0.5rem;
     box-shadow: var(--shadow);
-    transition: box-shadow var(--transition-fast);
+    transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
   }
   .composer:focus-within {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow);
+  }
+  .composer.dragging {
+    border-color: var(--accent);
+    border-style: dashed;
+  }
+  .drop-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 24px;
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated) 90%);
+    color: var(--accent);
+    font-size: 0.9rem;
+    font-weight: 600;
+    pointer-events: none;
+    z-index: 1;
   }
   .chips {
     display: flex;
