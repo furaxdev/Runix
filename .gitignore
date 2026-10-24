@@ -5,6 +5,26 @@
 *.part
 *.runyx-download.json
 
+# Secrets -- never committed, regardless of where they'd land.
+.env
+.env.*
+*.pem
+*.key
+kaggle.json
+.kaggle/
+*_token.txt
+*token*.json
+credentials.json
+
+# Model weights/checkpoints (Runyx Core / Runyx Code fine-tunes, item
+# 5 of docs/RUNYX_CODE.md): published to Hugging Face, never to git.
+*.safetensors
+*.ckpt
+*.bin
+models_out/
+checkpoints/
+docs/models/*.gguf
+
 # Go
 /vendor/
 
