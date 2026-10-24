@@ -1,5 +1,7 @@
 # Runyx
 
+**https://tryrunyx.vercel.app**
+
 Des modèles de langage qui tournent sur **votre** machine.
 
 Runyx télécharge, exécute et sert des modèles ouverts en local. Un seul
