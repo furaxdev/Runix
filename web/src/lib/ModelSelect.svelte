@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
   import type { RegistryModel } from "./api";
-  import { ChevronDown, Check } from "./icons";
+  import { ChevronDown, Check, modelFamilyIcon } from "./icons";
   import Badges from "./Badges.svelte";
 
   export let installed: RegistryModel[] = [];
@@ -33,6 +33,9 @@
 
 <div class="model-select">
   <button type="button" class="trigger" on:click|stopPropagation={toggle}>
+    {#if current}
+      <svelte:component this={modelFamilyIcon(current.family || current.name)} size={14} aria-hidden="true" />
+    {/if}
     <span class="label">{current?.name ?? "Select a model"}</span>
     <ChevronDown size={14} aria-hidden="true" />
   </button>
@@ -45,7 +48,10 @@
         {#each installed as m}
           <button type="button" class="item" role="option" aria-selected={m.pull_spec === selected} on:click={() => pick(m.pull_spec)}>
             <div class="item-main">
-              <span class="item-name">{m.name}</span>
+              <span class="item-name">
+                <svelte:component this={modelFamilyIcon(m.family || m.name)} size={14} aria-hidden="true" />
+                {m.name}
+              </span>
               {#if m.pull_spec === selected}
                 <Check size={14} aria-hidden="true" />
               {/if}
@@ -123,6 +129,16 @@
     justify-content: space-between;
     font-size: 0.88rem;
     font-weight: 500;
+  }
+  .item-name {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+  .item-name :global(svg) {
+    flex: 0 0 auto;
+    color: var(--text-muted);
   }
   .item-desc {
     margin: 0.2rem 0 0.35rem;

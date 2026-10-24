@@ -109,3 +109,18 @@ func TestPinAndExport(t *testing.T) {
 		t.Errorf("ListConversations: %+v, err=%v", convos, err)
 	}
 }
+
+func TestRename(t *testing.T) {
+	s, _ := Open(t.TempDir())
+	defer s.Close()
+	conv, _ := s.NewConversation("Original", "m", "")
+
+	if err := s.Rename(conv.ID, "Renamed"); err != nil {
+		t.Fatalf("Rename: %v", err)
+	}
+
+	convos, err := s.ListConversations()
+	if err != nil || len(convos) != 1 || convos[0].Title != "Renamed" {
+		t.Errorf("ListConversations: %+v, err=%v", convos, err)
+	}
+}

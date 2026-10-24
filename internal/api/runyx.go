@@ -38,6 +38,7 @@ func (s *Server) RegisterRunyx(mux *http.ServeMux, extras *RunyxExtras) {
 	mux.HandleFunc("POST /api/runyx/conversations/{id}/messages", extras.handleAddMessage)
 	mux.HandleFunc("POST /api/runyx/conversations/{id}/fork", extras.handleFork)
 	mux.HandleFunc("POST /api/runyx/conversations/{id}/pin", extras.handlePin)
+	mux.HandleFunc("POST /api/runyx/conversations/{id}/rename", extras.handleRename)
 	mux.HandleFunc("GET /api/runyx/conversations/{id}/export", extras.handleExport)
 	mux.HandleFunc("GET /api/runyx/search", extras.handleSearch)
 	mux.HandleFunc("POST /api/runyx/attachments", extras.handleAttachment)
@@ -141,6 +142,28 @@ func (e *RunyxExtras) handlePin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := e.History.Pin(id, req.Pinned); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (e *RunyxExtras) handleRename(w http.ResponseWriter, r *http.Request) {
+	if !e.requireHistory(w) {
+		return
+	}
+	id := r.PathValue("id")
+	var req struct{ Title string }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("title must not be empty"))
+		return
+	}
+	if err := e.History.Rename(id, title); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}

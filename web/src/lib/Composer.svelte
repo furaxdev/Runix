@@ -37,6 +37,7 @@
   let dragDepth = 0;
 
   $: hasContent = input.trim().length > 0 || pendingAttachments.length > 0;
+  $: wordCount = input.trim().length === 0 ? 0 : input.trim().split(/\s+/).length;
 
   function autoGrow() {
     if (!textareaEl) return;
@@ -188,6 +189,13 @@
 
     <div class="spacer" />
 
+    {#if input.length > 0}
+      <span class="counter" transition:fade={{ duration: dropFadeDuration }}>
+        {wordCount}
+        {wordCount === 1 ? "word" : "words"} &middot; {input.length}
+      </span>
+    {/if}
+
     <button
       type="button"
       class="round-btn"
@@ -291,6 +299,18 @@
   }
   .spacer {
     flex: 1;
+  }
+  .counter {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    margin-right: 0.3rem;
+    flex: 0 0 auto;
+  }
+  @media (max-width: 640px) {
+    .counter {
+      display: none;
+    }
   }
   .model-select-wrap {
     min-width: 0;

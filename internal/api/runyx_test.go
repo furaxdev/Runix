@@ -96,6 +96,40 @@ func TestConversationLifecycleOverHTTP(t *testing.T) {
 	}
 }
 
+func TestRenameOverHTTP(t *testing.T) {
+	mux, hist := newTestMux(t)
+	conv, _ := hist.NewConversation("Original title", "m", "")
+
+	rec := doJSON(t, mux, "POST", "/api/runyx/conversations/"+conv.ID+"/rename", map[string]string{"Title": "New title"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rename: status %d, body %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, mux, "GET", "/api/runyx/conversations", nil)
+	var convos []map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &convos)
+	if len(convos) != 1 || convos[0]["Title"] != "New title" {
+		t.Errorf("conversations = %v", convos)
+	}
+}
+
+func TestRenameRejectsEmptyTitle(t *testing.T) {
+	mux, hist := newTestMux(t)
+	conv, _ := hist.NewConversation("Keep me", "m", "")
+
+	rec := doJSON(t, mux, "POST", "/api/runyx/conversations/"+conv.ID+"/rename", map[string]string{"Title": "   "})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("rename with blank title: status %d, want 400", rec.Code)
+	}
+
+	rec = doJSON(t, mux, "GET", "/api/runyx/conversations", nil)
+	var convos []map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &convos)
+	if len(convos) != 1 || convos[0]["Title"] != "Keep me" {
+		t.Errorf("expected title to be unchanged, got %v", convos)
+	}
+}
+
 func TestForkOverHTTP(t *testing.T) {
 	mux, hist := newTestMux(t)
 	conv, _ := hist.NewConversation("t", "m", "")
