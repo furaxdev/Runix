@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { fade } from "svelte/transition";
   import "./lib/theme.css";
   import { api, type Conversation, type Message, type RegistryModel } from "./lib/api";
   import { detectLang, t, type Lang } from "./lib/i18n";
@@ -145,6 +146,8 @@
     safeSet("runyx.reduceMotion", v ? "1" : "0");
     applyTheme();
   }
+
+  $: viewFadeDuration = reduceMotion ? 0 : 160;
 </script>
 
 <div class="app">
@@ -165,38 +168,51 @@
 
   <main>
     {#if view === "home"}
-      <Home {installedModels} bind:model={currentModel} onBrowseMore={() => (view = "models")} on:send={onHomeSend} />
+      <div class="view-fade" in:fade={{ duration: viewFadeDuration }}>
+        <Home {installedModels} bind:model={currentModel} onBrowseMore={() => (view = "models")} on:send={onHomeSend} {reduceMotion} />
+      </div>
     {:else if view === "chat" && activeId}
       {#key activeId}
-        <Chat
-          conversationId={activeId}
-          model={currentModel}
-          {messages}
-          onMessagesChanged={refreshMessages}
-          {installedModels}
-          onBrowseMore={() => (view = "models")}
-          initialText={pendingFirstText}
-          initialAttachments={pendingFirstAttachments}
-        />
+        <div class="view-fade" in:fade={{ duration: viewFadeDuration }}>
+          <Chat
+            conversationId={activeId}
+            model={currentModel}
+            {messages}
+            onMessagesChanged={refreshMessages}
+            {installedModels}
+            onBrowseMore={() => (view = "models")}
+            initialText={pendingFirstText}
+            initialAttachments={pendingFirstAttachments}
+            {reduceMotion}
+          />
+        </div>
       {/key}
     {:else if view === "models"}
-      <Models
-        onUse={(spec) => {
-          currentModel = spec;
-          view = activeId ? "chat" : "home";
-        }}
-      />
+      <div class="view-fade" in:fade={{ duration: viewFadeDuration }}>
+        <Models
+          onUse={(spec) => {
+            currentModel = spec;
+            view = activeId ? "chat" : "home";
+          }}
+        />
+      </div>
     {:else if view === "pairing"}
-      <Pairing {lang} />
+      <div class="view-fade" in:fade={{ duration: viewFadeDuration }}>
+        <Pairing {lang} />
+      </div>
     {:else if view === "settings"}
-      <Settings {theme} {reduceMotion} onSetTheme={setTheme} onToggleReduceMotion={setReduceMotion} />
+      <div class="view-fade" in:fade={{ duration: viewFadeDuration }}>
+        <Settings {theme} {reduceMotion} onSetTheme={setTheme} onToggleReduceMotion={setReduceMotion} />
+      </div>
     {:else if view === "agent"}
-      <Agent onPairDevice={() => (view = "pairing")} />
+      <div class="view-fade" in:fade={{ duration: viewFadeDuration }}>
+        <Agent onPairDevice={() => (view = "pairing")} />
+      </div>
     {/if}
   </main>
 </div>
 
-<CommandPalette {lang} bind:open={paletteOpen} {commands} />
+<CommandPalette {lang} bind:open={paletteOpen} {commands} {reduceMotion} />
 
 <style>
   .app {
@@ -209,5 +225,11 @@
     flex: 1;
     display: flex;
     min-width: 0;
+  }
+  .view-fade {
+    flex: 1;
+    display: flex;
+    min-width: 0;
+    min-height: 0;
   }
 </style>

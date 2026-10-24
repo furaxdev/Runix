@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { fly } from "svelte/transition";
+  import { cubicOut } from "svelte/easing";
   import { api, type Message, type RegistryModel } from "./api";
   import Composer from "./Composer.svelte";
   import { Volume2 } from "./icons";
@@ -10,6 +12,9 @@
   export let onMessagesChanged: () => void;
   export let installedModels: RegistryModel[] = [];
   export let onBrowseMore: () => void;
+  export let reduceMotion = false;
+
+  $: messageFlyDuration = reduceMotion ? 0 : 220;
   // Set when this Chat is mounted right after Home created the
   // conversation for a just-typed first message: send it immediately
   // instead of waiting for another Composer submit.
@@ -138,8 +143,8 @@
 
 <div class="chat">
   <div class="messages">
-    {#each messages as m}
-      <div class="msg {m.Role}">
+    {#each messages as m (m.ID)}
+      <div class="msg {m.Role}" in:fly={{ y: 10, duration: messageFlyDuration, easing: cubicOut }}>
         <div class="bubble">
           {m.Content}
           {#if m.Role === "assistant"}
@@ -151,7 +156,7 @@
       </div>
     {/each}
     {#if streaming}
-      <div class="msg assistant">
+      <div class="msg assistant" in:fly={{ y: 10, duration: messageFlyDuration, easing: cubicOut }}>
         <div class="bubble">
           {liveReply}<span class="cursor">|</span>
           {#if stalled}
@@ -166,7 +171,7 @@
   </div>
 
   <div class="composer-dock">
-    <Composer {installedModels} bind:model {onBrowseMore} disabled={streaming} on:send={onSend} />
+    <Composer {installedModels} bind:model {onBrowseMore} disabled={streaming} on:send={onSend} {reduceMotion} />
   </div>
 </div>
 
@@ -213,7 +218,7 @@
     border: none;
   }
   .cursor {
-    opacity: 0.5;
+    animation: runyx-pulse 1s ease-in-out infinite;
   }
   .stall-notice {
     display: flex;

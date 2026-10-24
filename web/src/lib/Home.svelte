@@ -7,6 +7,7 @@
   export let installedModels: RegistryModel[] = [];
   export let model = "";
   export let onBrowseMore: () => void;
+  export let reduceMotion = false;
 
   const dispatch = createEventDispatcher<{
     send: { text: string; attachments: { file_name: string; kind: string; text: string }[] };
@@ -49,7 +50,7 @@
     </div>
   {:else}
     <div class="composer-wrap">
-      <Composer {installedModels} bind:model {onBrowseMore} autofocus on:send={onSend} />
+      <Composer {installedModels} bind:model {onBrowseMore} autofocus on:send={onSend} {reduceMotion} />
     </div>
 
     <div class="shortcuts">

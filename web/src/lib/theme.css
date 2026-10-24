@@ -10,7 +10,12 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
-  --transition-fast: 160ms ease;
+  /* ease-out-expo-ish: fast start, long soft settle -- reads as
+     "fluid" rather than mechanical linear/ease. Used for every
+     transition/animation in the app so motion feels consistent. */
+  --ease-fluid: cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-fast: 160ms var(--ease-fluid);
+  --transition-base: 240ms var(--ease-fluid);
 
   /* Light theme: warm off-white, ink-blue accent (not terracotta, to
      stay clear of a well-known chat UI's palette). */
@@ -76,9 +81,39 @@ code, pre {
 button {
   font-family: inherit;
   cursor: pointer;
+  transition: transform var(--transition-fast), background var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+}
+button:active:not(:disabled) {
+  transform: scale(0.94);
 }
 
-.reduce-motion * {
+.scroll-smooth {
+  scroll-behavior: smooth;
+}
+
+@keyframes runyx-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
   transition: none !important;
   animation: none !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
 }
