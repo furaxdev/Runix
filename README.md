@@ -1,14 +1,36 @@
 # Runyx
 
+**https://tryrunyx.vercel.app**
+
 **Runyx** is a 100% local LLM runner, built to be effortless to install,
 pleasant to use, and as fast as raw `llama.cpp`. One binary: CLI, daemon,
 and an HTTP server compatible with both the **Ollama** (`/api/*`) and
 **OpenAI** (`/v1/*`) APIs, plus an embedded web UI and a companion
-Android app.
+Android app. Nothing leaves your machine without your consent.
 
 The product is English-only (UI, CLI, docs) by design — see
 `docs/DECISIONS.md`. Voice input still understands whatever language the
 user speaks; only the interface itself is English.
+
+## What it does
+
+- **Model catalog** — every entry says what the model is good at, its
+  size, and whether it runs well, runs, or is too heavy for your
+  machine.
+- **Resumable downloads** — an interrupted fetch picks up where it left
+  off, and the file is verified by checksum.
+- **Ollama-compatible** — import your existing models, keep your tools:
+  Runyx answers on the Ollama API *and* the OpenAI API.
+- **Every attachment type** — PDF, Word, Excel, PowerPoint, text, code,
+  archives. Images go through OCR for models without vision.
+- **Knowledge base** — projects with their own instructions, local
+  search across your documents with citations, memory you can clear.
+- **Private by default** — nothing leaves the machine. No telemetry, no
+  account, no tracking.
+- **Shell agent** — asks for permission before running anything, stays
+  inside the chosen folder, and keeps a log.
+- **Phone** — Android pairing by QR code, in text or voice, to the
+  models running on your PC.
 
 ### Quick start
 
@@ -31,6 +53,11 @@ Once `runyx serve` is running, these are available on
 
 See `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` and `FEATURES.md` for the
 rest of the roadmap and current status.
+
+## Status
+
+Actively in development. The screenshots in this repo are real
+screenshots.
 
 ### License
 

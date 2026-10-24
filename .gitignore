@@ -29,3 +29,8 @@ android/.idea/
 .DS_Store
 .vscode/
 .idea/
+
+# marketing site
+node_modules/
+.vercel
+.env*

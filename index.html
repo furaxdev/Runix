@@ -1,0 +1,469 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Runyx</title>
+<meta name="description" content="Runyx runs open language models on your own computer: one program, a calm chat app, Ollama and OpenAI compatible APIs, an Android companion. Open source, MIT.">
+<meta name="theme-color" content="#2F4B7C">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Runyx">
+<meta property="og:title" content="Runyx">
+<meta property="og:description" content="Open language models, running on your own computer. Open source, MIT, no account, no telemetry.">
+<meta property="og:image" content="assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Runyx and its pixel-art mascot">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Runyx">
+<meta name="twitter:description" content="Open language models, running on your own computer.">
+<meta name="twitter:image" content="assets/og.png">
+
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Runyx runs open language models on your own computer: one program, a calm chat app, Ollama and OpenAI compatible APIs, an Android companion. Open source, MIT.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FAF7F0; --soft:#F1ECE0; --ink:#1B2233; --muted:#5C6371; --line:#E3DCCC;
+  --blue:#2F4B7C; --blue-ink:#FFFFFF; --code-bg:#14161C; --code-ink:#EDE8DD;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+  --sans:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --gutter:clamp(16px,5vw,56px); --max:1120px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--paper:#1B1A18;--soft:#242320;--ink:#EDE8DD;--muted:#A19C90;--line:#37342E;--blue:#6F8FCB;--blue-ink:#14161C;color-scheme:dark}
+}
+:root[data-theme="dark"]{--paper:#1B1A18;--soft:#242320;--ink:#EDE8DD;--muted:#A19C90;--line:#37342E;--blue:#6F8FCB;--blue-ink:#14161C;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+img{max-width:100%;display:block}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:4px}
+.wrap{max-width:var(--max);margin:0 auto;padding-left:max(var(--gutter),env(safe-area-inset-left,0px));padding-right:max(var(--gutter),env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--serif);font-weight:500;letter-spacing:-.015em;margin:0}
+h1{font-size:clamp(2.5rem,6.2vw,4.4rem);line-height:1.04;max-width:15ch}
+h2{font-size:clamp(1.8rem,3.6vw,2.6rem);line-height:1.12;max-width:20ch}
+h3{font-size:1.3rem;line-height:1.25}
+p{margin:0 0 1em;max-width:62ch}
+.muted{color:var(--muted)}
+code,.mono{font-family:var(--mono);font-size:.88em}
+
+/* header */
+header{padding:22px 0}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:24px}
+.mark{font-family:var(--serif);font-size:1.5rem;font-weight:500;text-decoration:none;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.mark img{width:22px;height:27px;image-rendering:pixelated}
+nav{display:flex;gap:26px;font-size:.95rem}
+nav a{text-decoration:none;color:var(--muted)}
+nav a:hover{color:var(--ink)}
+@media (max-width:640px){nav a.hide-s{display:none}nav{gap:18px}}
+
+/* hero */
+.hero{padding-top:clamp(40px,8vw,96px);padding-bottom:0}
+.hero p.lead{font-size:clamp(1.1rem,2vw,1.3rem);line-height:1.55;color:var(--muted);margin:22px 0 32px;max-width:52ch}
+.actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:10px;font-weight:600;font-size:.98rem;text-decoration:none;border:1px solid transparent;cursor:pointer;font-family:var(--sans)}
+.btn.primary{background:var(--blue);color:var(--blue-ink)}
+.btn.primary:hover{filter:brightness(1.1)}
+.btn.ghost{border-color:var(--line);color:var(--ink);background:transparent}
+.btn.ghost:hover{background:var(--soft)}
+.shot{margin:clamp(40px,6vw,72px) 0 0}
+.window{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--soft);box-shadow:0 1px 0 var(--line),0 24px 60px -30px rgba(27,34,51,.35)}
+.window .dots{display:flex;gap:7px;padding:11px 14px;border-bottom:1px solid var(--line)}
+.window .dots i{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.window img{width:100%;height:auto}
+figcaption{font-size:.88rem;color:var(--muted);margin-top:12px;max-width:70ch}
+
+/* sections */
+section{padding:clamp(56px,9vw,112px) 0}
+section+section{border-top:1px solid var(--line)}
+.split{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(28px,5vw,72px);align-items:start}
+.split>*,.stage>*{min-width:0}
+.split.flip{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}
+.split.flip>:first-child{order:2}
+@media (max-width:860px){.split,.split.flip{grid-template-columns:minmax(0,1fr)}.split.flip>:first-child{order:0}}
+.facts{list-style:none;padding:0;margin:26px 0 0;display:grid;gap:0}
+.facts li{padding:14px 0;border-top:1px solid var(--line);max-width:62ch}
+.facts li:last-child{border-bottom:1px solid var(--line)}
+.facts b{font-weight:600}
+.phones{display:flex;gap:18px;align-items:flex-start}
+.phones figure{margin:0;flex:1;max-width:240px}
+.phones .window{border-radius:18px}
+.phones img{width:100%}
+.stack{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+
+/* Runyx Code */
+.code{background:var(--code-bg);color:var(--code-ink);border-top:0!important}
+.code .muted{color:#A7A196}
+.code h2{max-width:22ch}
+.stage{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:clamp(28px,5vw,72px);align-items:center;margin-top:48px}
+@media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr)}}
+.buddy{display:flex;flex-direction:column;align-items:center;gap:22px;padding:36px 16px;border:1px solid #2A2E39;border-radius:18px;background:#101218}
+.buddy{overflow:hidden}
+.buddy img{width:176px;height:220px;image-rendering:pixelated;will-change:transform}
+.states{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.states button{font:500 .85rem var(--sans);color:#C9C4B8;background:transparent;border:1px solid #2F3340;border-radius:8px;padding:6px 12px;cursor:pointer}
+.states button[aria-pressed="true"]{background:#EDE8DD;color:#14161C;border-color:#EDE8DD}
+.states button:hover{border-color:#5A6072}
+.say{min-height:3.2em;text-align:center;color:#C9C4B8;font-size:.95rem;max-width:30ch}
+.term{white-space:pre-wrap;background:#0C0E13;border:1px solid #2A2E39;border-radius:14px;padding:20px 22px;font:400 .86rem/1.7 var(--mono);color:#D6D1C5;overflow-x:auto}
+.term .dim{color:#7B8190}
+.term .ask{display:block;white-space:normal;margin:14px 0 0;padding:14px 16px;border:1px solid #3A4156;border-radius:10px;background:#12151C}
+.term .row{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.term .row span{padding:4px 12px;border-radius:7px;font:500 .8rem var(--sans)}
+.term .ok{background:#2F4B7C;color:#fff}
+.term .no{border:1px solid #3A4156;color:#C9C4B8}
+.tag{display:inline-block;border:1px solid #3A4156;border-radius:999px;padding:3px 12px;font-size:.85rem;color:#C9C4B8;margin-bottom:18px}
+
+/* status */
+.status{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(20px,3vw,40px);margin-top:36px}
+@media (max-width:860px){.status{grid-template-columns:minmax(0,1fr)}}
+.status h3{padding-bottom:12px;border-bottom:2px solid var(--blue);margin-bottom:6px}
+.status ul{list-style:none;padding:0;margin:0}
+.status li{padding:10px 0;border-bottom:1px solid var(--line);font-size:.97rem}
+
+/* install */
+pre{margin:0;background:var(--code-bg);color:var(--code-ink);padding:20px 22px;border-radius:12px;overflow-x:auto;font:400 .88rem/1.75 var(--mono);position:relative}
+pre .c{color:#7B8190}
+.copy{position:absolute;top:10px;right:10px;font:500 .78rem var(--sans);background:#232733;color:#D6D1C5;border:1px solid #333948;border-radius:7px;padding:4px 10px;cursor:pointer}
+.copy:hover{background:#2C3140}
+.codeblock{position:relative}
+footer{padding:40px 0 64px;border-top:1px solid var(--line);color:var(--muted);font-size:.93rem}
+footer .bar{flex-wrap:wrap}
+footer a{margin-right:20px}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* scroll */
+.shot .window{transform-origin:50% 0;transform:perspective(1600px) rotateX(7deg) scale(.955);will-change:transform}
+.story{padding:0}
+.story-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(28px,5vw,72px);align-items:start}
+.step{min-height:88vh;display:flex;flex-direction:column;justify-content:center;padding:8vh 0;opacity:.45;transition:opacity .45s}
+.step.on{opacity:1}
+.step h2{max-width:14ch}
+.step .muted{margin-top:18px}
+.mshot{display:none}
+.pinwrap{position:sticky;top:max(20px,calc(50vh - 300px));padding:0}
+.panel{position:relative;aspect-ratio:16/10}
+.layer{position:absolute;inset:0;opacity:0;transform:translateY(16px) scale(.985);transition:opacity .5s,transform .5s;pointer-events:none}
+.layer.on{opacity:1;transform:none}
+.layer .window{height:100%;display:flex;flex-direction:column}
+.layer .window picture{flex:1;min-height:0;display:block}
+.layer .window img{width:100%;height:100%;object-fit:cover;object-position:top left}
+.phones-layer{height:100%;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:14px;background:var(--soft);padding:18px}
+.phoneset{display:flex;gap:16px;justify-content:center;align-items:center;height:100%}
+.phoneset .phone{border-radius:18px;height:100%;aspect-ratio:390/844;max-width:46%}
+.phoneset .phone img{width:100%;height:100%;object-fit:cover}
+#track{height:300vh;margin-top:48px}
+.pin{position:sticky;top:max(16px,calc(50vh - 290px))}
+.stage{margin-top:0}
+.term .ln{opacity:.38;transition:opacity .35s;white-space:pre-wrap}
+.term .ln.on{opacity:1}
+.term .ln+.ln{margin-top:14px}
+@media (max-width:860px){
+  .story-grid{grid-template-columns:minmax(0,1fr)}
+  .pinwrap{order:-1;top:max(8px,env(safe-area-inset-top,0px));z-index:3;background:var(--paper);padding:8px 0 10px}
+  .step{min-height:62vh;padding:6vh 0}
+  .step:first-child{padding-top:3vh}
+  #track{height:280vh;margin-top:28px}
+  .pin{top:max(12px,env(safe-area-inset-top,0px))}
+  .stage{gap:12px;margin-top:0}
+  .buddy{padding:14px 12px;gap:8px;border-radius:14px}
+  .buddy img{width:104px;height:130px}
+  .states{display:none}
+  .say{min-height:2.3em;font-size:.9rem}
+  .term{padding:14px 14px;font-size:.76rem;line-height:1.5;border-radius:12px}
+  .term .ln+.ln{margin-top:8px}
+  .term .ask{padding:10px 12px;margin-top:6px}
+  .term .row{margin-top:8px;gap:6px}
+  .term .row span{padding:3px 9px;font-size:.74rem}
+}
+@media (max-width:860px) and (max-height:720px){
+  .buddy{padding:10px 12px}
+  .buddy img{width:80px;height:100px}
+  .term{font-size:.7rem;padding:10px 12px}
+  .term .ln+.ln{margin-top:5px}
+  .term .ask{padding:8px 10px}
+}
+
+#strack{height:230vh}
+.spin{position:sticky;top:max(16px,calc(50vh - 260px))}
+.status .col{opacity:.4;transition:opacity .4s}
+.status .col.on{opacity:1}
+#itrack{height:270vh}
+.ipin{position:sticky;top:max(16px,calc(50vh - 290px))}
+.g{display:block;opacity:.35;transition:opacity .35s}
+.g.on{opacity:1}
+.g+.g{margin-top:1.1em}
+@media (max-width:860px){
+  #strack{height:210vh}
+  .spin{top:max(12px,env(safe-area-inset-top,0px))}
+  .spin .muted{display:none}
+  .status{display:block;margin-top:16px}
+  .status .col{opacity:1;border-bottom:1px solid var(--line)}
+  .status h3{margin:0;padding:12px 0;border-bottom:0;opacity:.5;transition:opacity .3s}
+  .status .col.on h3{opacity:1;border-bottom:2px solid var(--blue)}
+  .status .col:not(.on) ul{display:none}
+  #itrack{height:260vh}
+  .ipin{top:max(12px,env(safe-area-inset-top,0px))}
+  .ipin .note{display:none}
+  .ipin .split{gap:16px}
+  .g{display:none;opacity:1}
+  .g.cur{display:block}
+  pre{font-size:.76rem;padding:16px 14px;line-height:1.65}
+  .copy{top:6px;right:6px}
+}
+
+/* story without pin: images inline, revealed on scroll */
+.pinwrap{display:none!important}
+.story-grid{grid-template-columns:minmax(0,1fr)!important;max-width:760px;margin-inline:auto}
+.step{min-height:0!important;opacity:1!important;padding:9vh 0 3vh!important}
+.step h2{max-width:20ch}
+.mshot{display:block;margin-top:30px;opacity:0;transform:translateY(34px) scale(.97);transition:opacity .7s ease,transform .8s cubic-bezier(.2,.7,.2,1)}
+.mshot.in{opacity:1;transform:none}
+.mshot .phoneset{height:auto;gap:12px}
+.mshot .phone{max-width:44%;aspect-ratio:390/844;height:auto}
+.mshot .phone img{width:100%;height:100%;object-fit:cover}
+.facts li{opacity:0;transform:translateX(-14px);transition:opacity .5s,transform .5s}
+.step.in .facts li{opacity:1;transform:none}
+.step.in .facts li:nth-child(2){transition-delay:.12s}.step.in .facts li:nth-child(3){transition-delay:.24s}.step.in .facts li:nth-child(4){transition-delay:.36s}
+/* install animations */
+.l{display:block;white-space:pre-wrap}
+.g.play .l{animation:lnin .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i)*.16s)}
+@keyframes lnin{from{opacity:0;transform:translateX(-10px);clip-path:inset(0 100% 0 0)}to{opacity:1;transform:none;clip-path:inset(0 0 0 0)}}
+.g.cur .l:last-child::after{content:"";display:inline-block;width:.55em;height:1.05em;margin-left:3px;vertical-align:-.15em;background:#9fb4e8;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.prog{display:flex;gap:8px;margin:22px 0 22px}
+.prog i{height:4px;flex:1;max-width:44px;border-radius:2px;background:var(--line);overflow:hidden;position:relative}
+.prog i::after{content:"";position:absolute;inset:0;background:var(--blue);transform:scaleX(0);transform-origin:left;transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+.prog i.on::after{transform:scaleX(1)}
+.codeblock{transition:transform .6s,box-shadow .6s}
+.ipin.live .codeblock{box-shadow:0 30px 70px -30px rgba(47,75,124,.55)}
+@media (prefers-reduced-motion:reduce){
+  .mshot,.facts li{opacity:1;transform:none;transition:none}
+  .g.play .l{animation:none}
+  .shot .window{transform:none}
+  .layer{transform:none;transition:opacity .01s}
+  .step,.term .ln{transition:none}
+}
+</style>
+<header><div class="wrap bar">
+  <a class="mark" href="#top"><img src="favicon.svg" alt="">Runyx</a>
+  <nav aria-label="Main">
+    <a class="hide-s" href="#features">What it does</a>
+    <a class="hide-s" href="#code">Runyx Code</a>
+    <a href="#status">Status</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/furaxdev/Runyx">GitHub</a>
+  </nav>
+</div></header>
+
+<main id="top">
+<div class="wrap hero">
+  <h1>Language models that run on your own computer.</h1>
+  <p class="lead">Runyx downloads, runs and serves open models locally. One program, a calm chat app, APIs that speak Ollama and OpenAI, and an Android app for the same machine. Open source, no account, no telemetry.</p>
+  <div class="actions">
+    <a class="btn primary" href="#install">Get started</a>
+    <a class="btn ghost" href="https://github.com/furaxdev/Runyx">View on GitHub</a>
+  </div>
+  <figure class="shot">
+    <div class="window"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+      <picture><source media="(prefers-color-scheme: dark)" srcset="assets/dark-03-conversation-response.png"><img src="assets/light-03-conversation-response.png" width="1440" height="900" alt="The Runyx chat window with a short question and the model's reply"></picture>
+    </div>
+    <figcaption>A real reply from Llama 3.2 1B, generated by Runyx on a small CPU-only machine and captured automatically by the project's CI.</figcaption>
+  </figure>
+</div>
+
+<section class="story" id="features"><div class="wrap"><div class="story-grid">
+<div class="steps"><article class="step on" data-i="0"><h2>Pick a model from a list, not a file name.</h2><p class="muted">The Models page is a curated catalog. Each entry says what the model is good at, how big it is, and whether your machine can run it. Download, pause and resume from the same screen. Hugging Face GGUF search is built in.</p><ul class="facts"><li><b>Fits your hardware.</b> Runyx reads your RAM and GPU and marks each model as runs well, runs, or too heavy.</li><li><b>Resumable downloads.</b> Interrupted pulls continue where they stopped and are checked with a hash.</li><li><b>Already use Ollama?</b> Import your local models and keep your existing tools: Runyx answers on both the Ollama and the OpenAI API shapes.</li></ul><div class="mshot"><div class="window"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dark-05-models.png"><img src="assets/light-05-models.png" width="1440" height="900" loading="lazy" alt="The Models page listing installed and recommended models with short descriptions"></picture></div></div></article><article class="step" data-i="1"><h2>Bring any file. Any model can read it.</h2><p class="muted">Attachments are turned into text before they reach the model, so a small model with no special skills can still work with your documents.</p><ul class="facts"><li><b>Documents.</b> PDF, Word, Excel, PowerPoint, plain text, code and archives.</li><li><b>Images for every model.</b> Models without vision get the text found in the image through OCR. Models with vision see the image itself.</li><li><b>Your own knowledge base.</b> Projects with their own instructions, local search over your documents with citations, and a memory you can read and delete.</li></ul><div class="mshot"><div class="window"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dark-04-attachment.png"><img src="assets/light-04-attachment.png" width="1440" height="900" loading="lazy" alt="A file added to a message before sending"></picture></div></div></article><article class="step" data-i="2"><h2>Private by default.</h2><p class="muted">Everything runs on your machine. Nothing is sent anywhere unless you turn on a feature that needs the network, like web search.</p><ul class="facts"><li><b>Local only.</b> The server listens on your own computer. Other devices need a pairing token that you can revoke.</li><li><b>No telemetry.</b> No analytics, no tracking, no account.</li><li><b>You approve commands.</b> The shell agent asks before it runs anything, stays inside the folder you choose, and keeps a log.</li><li><b>Untrusted by design.</b> Text from files, web pages and images is treated as data, not as instructions.</li></ul><div class="mshot"><div class="window"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dark-06-agent.png"><img src="assets/light-06-agent.png" width="1440" height="900" loading="lazy" alt="The Agent page with the command approval and permissions overview"></picture></div></div></article><article class="step" data-i="3"><h2>Your phone, your computer.</h2><p class="muted">Pair an Android phone with a QR code and chat with the models running on your PC, by text or by voice. The model stays at home; the phone is just a window.</p><ul class="facts"><li><b>Pair once.</b> Scan the code shown in the web app. Revoke the phone any time.</li><li><b>Share to Runyx.</b> Send text and files from other apps straight into a chat.</li><li><b>A full terminal interface.</b> A keyboard and mouse driven screen for the terminal, with selection, markdown styling and copyable commands. In active development.</li></ul><div class="mshot"><div class="phoneset"><div class="window phone"><img src="assets/phone-01-home.png" width="390" height="844" loading="lazy" alt="Runyx on a phone-sized screen, home"></div><div class="window phone"><img src="assets/phone-02-chat.png" width="390" height="844" loading="lazy" alt="Runyx on a phone-sized screen, in a chat"></div></div></div></article></div>
+<div class="pinwrap" aria-hidden="true"><div class="panel"><div class="layer on" data-i="0"><div class="window"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dark-05-models.png"><img src="assets/light-05-models.png" width="1440" height="900" alt="The Models page listing installed and recommended models with short descriptions"></picture></div></div><div class="layer" data-i="1"><div class="window"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dark-04-attachment.png"><img src="assets/light-04-attachment.png" width="1440" height="900" loading="lazy" alt="A file added to a message before sending"></picture></div></div><div class="layer" data-i="2"><div class="window"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dark-06-agent.png"><img src="assets/light-06-agent.png" width="1440" height="900" loading="lazy" alt="The Agent page with the command approval and permissions overview"></picture></div></div><div class="layer" data-i="3"><div class="phones-layer"><div class="phoneset"><div class="window phone"><img src="assets/phone-01-home.png" width="390" height="844" loading="lazy" alt="Runyx on a phone-sized screen, home"></div><div class="window phone"><img src="assets/phone-02-chat.png" width="390" height="844" loading="lazy" alt="Runyx on a phone-sized screen, in a chat"></div></div></div></div></div></div>
+</div></div></section>
+<section class="code" id="code"><div class="wrap">
+  <span class="tag">In development</span>
+  <h2>Runyx Code, a coding agent that stays on your machine.</h2>
+  <p class="muted" style="margin-top:18px">Open a project or connect a GitHub repository, choose a coding model, and describe the task. Runyx Code reads and edits files, runs commands, takes screenshots and works with branches and pull requests. Every write, command and push waits for your approval, and you can watch and approve from your phone.</p>
+  <div id="track"><div class="pin" id="pin"><div class="stage">
+    <div class="buddy">
+      <img id="buddy" src="mascot/idle-dark.svg" width="176" height="220" alt="The Runyx Code mascot, a small blue pixel robot">
+      <div class="states" role="group" aria-label="Mascot state">
+        <button type="button" data-s="idle" aria-pressed="true">Idle</button>
+        <button type="button" data-s="thinking" aria-pressed="false">Thinking</button>
+        <button type="button" data-s="working" aria-pressed="false">Working</button>
+        <button type="button" data-s="done" aria-pressed="false">Done</button>
+        <button type="button" data-s="error" aria-pressed="false">Error</button>
+        <button type="button" data-s="sleep" aria-pressed="false">Sleep</button>
+      </div>
+      <p class="say" id="say" aria-live="off">Ready when you are.</p>
+    </div>
+    <div class="term" id="term" aria-label="Example of a command approval">
+<div class="ln on" data-k="0"><span class="dim">Task</span>  Fix the failing test in parser.go</div>
+<div class="ln" data-k="1"><span class="dim">read_file</span>   internal/parser/parser.go</div>
+<div class="ln" data-k="2"><span class="dim">edit_file</span>   internal/parser/parser.go  (+4 -1)</div>
+<div class="ln" data-k="3"><span class="ask">Run this command in your project folder?
+<b>go test ./internal/parser/...</b>
+<span class="row"><span class="ok">Approve</span><span class="no">Deny</span><span class="no">Approve from phone</span></span></span></div>
+<div class="ln" data-k="4"><span class="dim">output</span>      ok  runyx/internal/parser  0.42s
+<span class="dim">result</span>      1 file changed, tests pass</div>
+    </div>
+  </div></div></div>
+  <p class="muted" style="margin-top:28px">The screen above is an illustration of how approvals will look. The agent's file and command tools are built and tested; GitHub, screenshots and the full interface are still being written.</p>
+</div></section>
+<section id="status"><div class="wrap"><div id="strack"><div class="spin" id="spin">
+  <h2>What works today, said plainly.</h2>
+  <p class="muted" style="margin-top:18px">Runyx is young. This is the honest state of the project; the full checklist lives in the repository.</p>
+  <div class="status">
+    <div class="col on"><h3>Tested with real runs</h3><ul>
+      <li>Downloading and running models, with replies checked on CI</li>
+      <li>Ollama and OpenAI compatible APIs</li>
+      <li>Chat history with search, projects and memory</li>
+      <li>File attachments, including OCR on images</li>
+      <li>Web interface served by the program itself</li>
+    </ul></div>
+    <div class="col"><h3>Written, not yet tested on real hardware</h3><ul>
+      <li>GPU acceleration</li>
+      <li>Voice input and spoken replies</li>
+      <li>The Android app on a real phone (it builds and its unit tests pass)</li>
+      <li>Native Windows and macOS runs</li>
+    </ul></div>
+    <div class="col"><h3>Not done yet</h3><ul>
+      <li>Prebuilt downloads: for now you build from source</li>
+      <li>Encrypted phone to PC connection (today it is limited to your local network)</li>
+      <li>Runyx Code</li>
+    </ul></div>
+  </div>
+</div></div></div></section>
+
+<section id="install"><div class="wrap"><div id="itrack"><div class="ipin" id="ipin"><div class="split">
+  <div>
+    <h2>Build it, pull a model, start talking.</h2>
+    <p class="muted" id="icap" style="margin-top:18px">Build the program. You need Go; Runyx is a single program.</p>
+    <div class="prog" id="prog" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+    <p class="muted note">Once the server is running, the web app and both APIs are available on <code>127.0.0.1:11535</code>. The first run downloads the model engine for your machine.</p>
+  </div>
+  <div class="codeblock"><pre id="c1"><span class="g on"><span class="c"># build</span>
+git clone https://github.com/furaxdev/Runyx
+cd Runyx
+go build -o runyx ./cmd/runyx</span><span class="g"><span class="c"># check your machine and see which models fit</span>
+./runyx doctor
+./runyx recommend</span><span class="g"><span class="c"># download a model</span>
+./runyx pull bartowski/Llama-3.2-1B-Instruct-GGUF</span><span class="g"><span class="c"># chat in the terminal</span>
+./runyx run bartowski/Llama-3.2-1B-Instruct-GGUF</span><span class="g"><span class="c"># or start the web app and the APIs, same call shape as OpenAI</span>
+./runyx serve
+curl http://127.0.0.1:11535/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"bartowski/Llama-3.2-1B-Instruct-GGUF",
+       "messages":[{"role":"user","content":"Hello"}]}'</span></pre><button class="copy" type="button" data-t="c1">Copy</button></div>
+</div></div></div></div></section>
+</main>
+<footer><div class="wrap bar">
+  <div>Runyx is open source under the MIT license. Made by FuraxDev.</div>
+  <div><a href="https://github.com/furaxdev/Runyx">GitHub</a><a href="https://github.com/furaxdev/Runyx/blob/main/LICENSE">License</a></div>
+</div></footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var $ = function(s){ return document.querySelector(s); }, $$ = function(s){ return [].slice.call(document.querySelectorAll(s)); };
+  var heroWin = $('.shot .window');
+  var steps = $$('.step'), layers = $$('.layer');
+  var track = $('#track'), pin = $('#pin'), term = $$('.term .ln');
+  var img = $('#buddy'), say = $('#say'), btns = $$('.states button');
+  var says = {idle:'Ready when you are.',thinking:'Reading the code before touching anything.',working:'Making the change.',done:'Tests pass. Review the changes when you like.',error:'The command failed. Here is the output.',sleep:'Nothing to do, so it naps.'};
+  var plan = [
+    {s:'idle', t:says.idle, to:0.17}, {s:'thinking', t:says.thinking, to:0.36}, {s:'working', t:says.working, to:0.54},
+    {s:'working', t:'Waiting for your approval.', to:0.70}, {s:'done', t:says.done, to:0.82},
+    {s:'working', t:'Off to the next task.', to:1.01}
+  ];
+  var EXIT_FROM = 0.82, mx = 0;
+  var curStory = -1, curCode = -1;
+
+  var strack = $('#strack'), spin = $('#spin'), cols = $$('.status .col');
+  var itrack = $('#itrack'), ipin = $('#ipin'), groups = $$('#c1 .g'), icap = $('#icap');
+  var caps = ['Build the program. You need Go; Runyx is a single program.','Check what your machine can run.','Download a model that fits.','Chat with it in the terminal.','Or start the web app and the APIs.'];
+  var curStatus = -1, curInstall = -1;
+  function trackP(t, pn){ var r = t.getBoundingClientRect(), tp = parseFloat(getComputedStyle(pn).top) || 0; return clamp((tp - r.top) / Math.max(1, r.height - pn.offsetHeight)); }
+  function pinned(pn){ return getComputedStyle(pn).position === 'sticky'; }
+  function stepsUpdate(){
+    var si = pinned(spin) ? Math.min(2, Math.floor(trackP(strack, spin) * 3)) : -2;
+    if(si !== curStatus){ curStatus = si; cols.forEach(function(c, i){ c.classList.toggle('on', si === -2 ? true : i === si); }); }
+    var ii = pinned(ipin) ? Math.min(4, Math.floor(trackP(itrack, ipin) * 5)) : -2;
+    if(ii !== curInstall){
+      curInstall = ii;
+      groups.forEach(function(g, k){ g.classList.toggle('on', ii === -2 ? true : k <= ii); g.classList.toggle('cur', ii === -2 ? k === 0 : k === ii); });
+      var cg = groups[ii < 0 ? 0 : ii]; if(cg){ cg.classList.remove('play'); void cg.offsetWidth; cg.classList.add('play'); }
+      $$('#prog i').forEach(function(d,k){ d.classList.toggle('on', ii === -2 ? k===0 : k <= ii); });
+      ipin.classList.toggle('live', ii >= 0);
+      icap.textContent = ii === -2 ? caps[0] : caps[ii];
+    }
+  }
+
+  function clamp(x){ return Math.max(0, Math.min(1, x)); }
+
+  (function(){
+    $$('#c1 .g').forEach(function(g){
+      var parts = g.innerHTML.split('\n');
+      g.innerHTML = parts.map(function(p,i){ return '<span class="l" style="--i:'+i+'">'+p+'</span>'; }).join('');
+    });
+    var io = new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, {threshold:.18});
+    $$('.mshot, .story .step').forEach(function(n){ io.observe(n); });
+  })();
+  function setMascot(s, t){
+    img.src = 'mascot/' + s + '-dark.svg';
+    say.textContent = t || says[s];
+    btns.forEach(function(b){ b.setAttribute('aria-pressed', b.dataset.s === s ? 'true' : 'false'); });
+  }
+  function update(){
+    var vh = window.innerHeight, y = window.scrollY;
+    if(!reduce && heroWin){
+      var p = clamp(y / (vh * 0.7));
+      heroWin.style.transform = 'perspective(1600px) rotateX(' + (7 * (1 - p)).toFixed(2) + 'deg) scale(' + (0.955 + 0.045 * p).toFixed(4) + ')';
+    }
+    {
+      var best = 0, bd = 1e9, mob = window.innerWidth <= 860;
+      var line = mob ? $('.pinwrap').getBoundingClientRect().bottom + 90 : vh * 0.5;
+      steps.forEach(function(s, i){
+        var r = s.getBoundingClientRect();
+        var d = mob ? ((r.top <= line && r.bottom > line) ? 0 : Math.min(Math.abs(r.top - line), Math.abs(r.bottom - line))) : Math.abs(r.top + r.height / 2 - line);
+        if(d < bd){ bd = d; best = i; }
+      });
+      if(best !== curStory){
+        curStory = best;
+        steps.forEach(function(s, i){ s.classList.toggle('on', i === best); });
+        layers.forEach(function(l, i){ l.classList.toggle('on', i === best); });
+      }
+    }
+    stepsUpdate();
+    var r = track.getBoundingClientRect(), p2;
+    var top = parseFloat(getComputedStyle(pin).top) || 0;
+    p2 = clamp((top - r.top) / Math.max(1, r.height - pin.offsetHeight));
+    var idx = 0;
+    while(idx < plan.length - 1 && p2 >= plan[idx].to) idx++;
+    var q = clamp((p2 - EXIT_FROM) / (1 - EXIT_FROM));
+    var e = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+    var dist = ($('.buddy').getBoundingClientRect().width / 2) + 140;
+    mx = Math.round(e * dist);
+    img.style.transform = mx ? 'translateX(' + mx + 'px)' : '';
+    img.style.visibility = q >= 0.995 ? 'hidden' : 'visible';
+    if(q >= 0.995) say.textContent = 'See you on the next task.';
+    if(idx !== curCode){
+      curCode = idx;
+      term.forEach(function(l){ l.classList.toggle('on', +l.dataset.k <= Math.min(idx, 4)); });
+      setMascot(plan[idx].s, plan[idx].t);
+    }
+  }
+  var queued = false;
+  function onScroll(){ if(queued) return; queued = true; requestAnimationFrame(function(){ queued = false; update(); }); }
+  window.addEventListener('scroll', onScroll, {passive:true});
+  window.addEventListener('resize', onScroll);
+  btns.forEach(function(b){ b.addEventListener('click', function(){ img.style.transform = ''; img.style.visibility = 'visible'; setMascot(b.dataset.s); }); });
+  [].forEach.call(document.querySelectorAll('.copy'), function(b){
+    b.addEventListener('click', function(){
+      var el = document.getElementById(b.dataset.t), t = [].slice.call(el.querySelectorAll('.l')).map(function(x){return x.textContent;}).join('\n');
+      function fallback(){ var rg = document.createRange(); rg.selectNodeContents(el); var s = window.getSelection(); s.removeAllRanges(); s.addRange(rg); b.textContent = 'Press Ctrl+C'; }
+      (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function(){ b.textContent = 'Copied'; setTimeout(function(){ b.textContent = 'Copy'; }, 1600); }, fallback);
+    });
+  });
+  update();
+})();
+</script>
+
+</body></html>
