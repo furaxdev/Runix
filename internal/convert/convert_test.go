@@ -110,6 +110,58 @@ func TestConvertDOCX(t *testing.T) {
 	}
 }
 
+// TestReadZipMemberRefusesOversizedEntry guards against a real DoS
+// vector: a .docx/.xlsx/.pptx (all three go through this one shared
+// helper) whose on-disk size is small but whose XML member
+// decompresses to something enormous. Before this bound existed,
+// uploading a file like that as a chat attachment would make the
+// daemon buffer the entire decompressed member in memory with no cap
+// at all -- a classic zip bomb. Exercised via readZipMemberLimited
+// with a small limit rather than the real 200MB maxZipMemberBytes:
+// the bound-checking logic is identical either way, and a multi-
+// hundred-MB fixture would be slow to generate/compress/decompress in
+// a unit test even though it compresses down to almost nothing on
+// disk.
+func TestReadZipMemberRefusesOversizedEntry(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bomb.docx")
+	const limit = 1024
+	oversized := strings.Repeat("A", limit+1)
+	writeZip(t, path, map[string]string{"word/document.xml": oversized})
+
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatalf("zip.OpenReader: %v", err)
+	}
+	defer r.Close()
+
+	if _, err := readZipMemberLimited(r, "word/document.xml", limit); err == nil {
+		t.Error("expected a member decompressing past the limit to be refused, not silently read into memory")
+	}
+}
+
+func TestReadZipMemberAllowsEntryAtTheLimit(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ok.docx")
+	const limit = 1024
+	exact := strings.Repeat("A", limit)
+	writeZip(t, path, map[string]string{"word/document.xml": exact})
+
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatalf("zip.OpenReader: %v", err)
+	}
+	defer r.Close()
+
+	data, err := readZipMemberLimited(r, "word/document.xml", limit)
+	if err != nil {
+		t.Fatalf("readZipMemberLimited: %v", err)
+	}
+	if len(data) != limit {
+		t.Errorf("got %d bytes, want exactly %d", len(data), limit)
+	}
+}
+
 func TestConvertXLSX(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "data.xlsx")

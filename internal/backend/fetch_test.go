@@ -461,3 +461,98 @@ func TestEnsurePrunesCPUKernelsOnlyWhenEnvSet(t *testing.T) {
 		}
 	})
 }
+
+// TestVerifyOrPinBinaryTrustsOnFirstUse covers an install from before
+// this hash-pinning existed: a binary with no .sha256 sidecar yet must
+// not be rejected outright (that would break every existing cache),
+// but gets pinned on this first check so tampering after this point is
+// still caught.
+func TestVerifyOrPinBinaryTrustsOnFirstUse(t *testing.T) {
+	dir := t.TempDir()
+	binPath := filepath.Join(dir, serverBinaryName())
+	os.WriteFile(binPath, []byte("a binary"), 0o755)
+
+	if !verifyOrPinBinary(binPath) {
+		t.Fatal("expected a binary with no prior pin to be trusted (and pinned) on first use")
+	}
+	if _, err := os.Stat(pinHashPath(binPath)); err != nil {
+		t.Error("expected a .sha256 sidecar to be written after trust-on-first-use")
+	}
+}
+
+// TestVerifyOrPinBinaryDetectsTampering is the actual guarantee this
+// mechanism exists for: once pinned, a binary that changes on disk --
+// tampering, corruption, a hand-placed substitute -- must be detected,
+// not silently trusted the way a bare os.Stat (what Ensure did before
+// this fix) would.
+func TestVerifyOrPinBinaryDetectsTampering(t *testing.T) {
+	dir := t.TempDir()
+	binPath := filepath.Join(dir, serverBinaryName())
+	os.WriteFile(binPath, []byte("the real binary"), 0o755)
+	if !verifyOrPinBinary(binPath) {
+		t.Fatal("expected first-use pinning to succeed")
+	}
+
+	// Simulate tampering after the pin was recorded.
+	os.WriteFile(binPath, []byte("a substituted binary"), 0o755)
+
+	if verifyOrPinBinary(binPath) {
+		t.Error("expected a binary that changed after being pinned to fail verification")
+	}
+}
+
+func TestVerifyDigestAcceptsMatchingSHA256(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "archive.tar.gz")
+	os.WriteFile(path, []byte("archive contents"), 0o644)
+	sum, err := sha256Hex(path)
+	if err != nil {
+		t.Fatalf("sha256Hex: %v", err)
+	}
+	if err := verifyDigest(path, "sha256:"+sum); err != nil {
+		t.Errorf("verifyDigest with a matching digest: %v", err)
+	}
+}
+
+func TestVerifyDigestRejectsMismatch(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "archive.tar.gz")
+	os.WriteFile(path, []byte("archive contents"), 0o644)
+	if err := verifyDigest(path, "sha256:0000000000000000000000000000000000000000000000000000000000000000"); err == nil {
+		t.Error("expected a mismatched digest to be rejected")
+	}
+}
+
+// TestEnsureRedownloadsWhenCachedBinaryWasTampered is the end-to-end
+// version of TestVerifyOrPinBinaryDetectsTampering, reusing the same
+// releases-API-unreachable path TestEnsureFallsBackToCachedBinaryWhenReleasesAPIFails
+// does: a cached binary that was pinned once and then modified on disk
+// must not be returned by Ensure() as a trusted result.
+func TestEnsureRedownloadsWhenCachedBinaryWasTampered(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+	old := ReleasesAPI
+	ReleasesAPI = srv.URL
+	defer func() { ReleasesAPI = old }()
+
+	dir := t.TempDir()
+	info := hwdetect.Info{OS: "linux", Arch: "amd64"}
+	cachedDir := filepath.Join(dir, "b1234-linux-amd64")
+	os.MkdirAll(cachedDir, 0o755)
+	binPath := filepath.Join(cachedDir, serverBinaryName())
+	os.WriteFile(binPath, []byte("the pinned binary"), 0o755)
+	if !verifyOrPinBinary(binPath) {
+		t.Fatal("expected initial pin to succeed")
+	}
+	// Tamper with it after pinning.
+	os.WriteFile(binPath, []byte("a substituted binary"), 0o755)
+
+	f := NewFetcher(dir)
+	_, err := f.Ensure(context.Background(), info, nil)
+	// With the releases API unreachable and no genuinely-cached binary
+	// left (the only candidate just failed verification), Ensure must
+	// fail rather than fall back to the tampered file.
+	if err == nil {
+		t.Error("expected Ensure to refuse a tampered cached binary when no fresh download is reachable")
+	}
+}

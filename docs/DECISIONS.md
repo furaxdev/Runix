@@ -530,3 +530,83 @@ for free once built, nothing extra needed there).
   push that touches non-`tui`/non-`docs` paths, so pushing this
   `web/src` + `internal/webui/dist` change triggers that pipeline the
   normal way.
+
+- **"Secure max" hardening pass**: an unscoped request to make Runyx
+  as secure as reasonably possible, so this was a real audit (read the
+  actual code against nine specific risk areas: HTTP binding/CORS,
+  backend-binary download integrity, pairing tokens, shell-agent
+  policy, attachment handling, the auto-updater, secrets in logs, SQL/
+  FTS injection, file permissions) rather than a generic pass. Three
+  were real, not theoretical:
+  - **Critical: `daemon.TokenStore`'s `LocalBypass`
+    (`internal/daemon/auth.go`)** trusted any request whose TCP
+    connection was loopback, with no check on what the request was
+    actually addressed to. A webpage open in the user's browser could
+    `fetch("http://127.0.0.1:<port>/...")` directly (its `Origin`
+    header would show the real external site, uncheck), or a page on
+    an attacker-registered domain that resolves to 127.0.0.1 (DNS
+    rebinding) could do the same while its `Host` header still names
+    that domain -- either way the connection is loopback even though
+    the daemon was never the page's own origin, and the full local API
+    (shell-agent approval requests, model pull/delete, chat history
+    read/write) was reachable with zero friction, no user interaction
+    beyond having the tab open. Fixed by `isGenuineLocalRequest()`:
+    the bypass now only applies when the `Host` header itself names a
+    loopback host (catches DNS rebinding) *and* any `Origin` header
+    present also names one (catches a direct cross-origin fetch).
+    Never affects a genuinely remote client (a paired phone, LAN
+    access) -- those were never loopback at the TCP layer and so never
+    reached the bypass in the first place. `TokenStore.Valid` also
+    switched from `==` to `subtle.ConstantTimeCompare` while in there
+    (low practical risk given 256-bit tokens, but free to fix).
+  - **High: the shell-agent deny-list (`internal/agent/policy.go`)**
+    compared `exe == "sudo"` literally -- `/bin/sudo`, `./sudo`, or
+    (Windows) `SUDO.EXE` all name the exact same program but none
+    matched, so a command nonNegotiableDenyPrefixes exists specifically
+    to refuse *before any approval prompt* instead reached the prompt
+    like any other command. `matchesDenied()` now compares
+    `filepath.Base`, lowercased, with Windows executable suffixes
+    stripped.
+  - **High: `backend.Fetcher.Ensure` (`internal/backend/fetch.go`)**
+    executed the cached `llama-server` binary on nothing more than
+    `os.Stat` succeeding -- no integrity check at all, on a binary this
+    is the one thing in Runyx that runs as a trusted subprocess with
+    full access to whatever the daemon can reach. llama.cpp's releases
+    don't publish per-asset checksums or signatures to verify against
+    (checked), so this isn't full supply-chain signing -- it's
+    trust-on-first-use hash pinning (`verifyOrPinBinary`): the SHA-256
+    of a freshly-extracted binary is recorded in a `.sha256` sidecar,
+    and every later "already cached" check (including the
+    releases-API-unreachable fallback path, which used to trust
+    *anything* on disk under the right directory name) must match it
+    or the binary is treated as not-cached and re-fetched. Also
+    verifies a GitHub-reported asset `digest` field against the
+    downloaded archive when one is present, which costs nothing and
+    activates automatically if llama.cpp's releases ever start
+    including one.
+  - **Medium, found while auditing, not in the original nine areas:
+    `internal/convert`'s `readZipMember`** (shared by the .docx/.xlsx/
+    .pptx converters) read a zip member's decompressed contents with
+    `io.ReadAll` and no size bound at all -- a classic zip-bomb DoS: a
+    small uploaded attachment could decompress to gigabytes and exhaust
+    memory. Bounded via `io.LimitReader` at 200MB (far beyond any real
+    Office XML part, so no legitimate file is affected).
+  - Also tightened, lower severity: the shell agent's `audit.jsonl` and
+    the command `Result` it returns now run every field through
+    `internal/secretscan.Redact` (a command's `Reason`/`Args`, or its
+    own stdout/stderr, could contain a secret the model was never
+    asked to protect); `audit.jsonl` and `internal/history`'s
+    `runyx.db` (every conversation the user has ever had) are now
+    written `0o600` instead of the sqlite driver's/previous code's
+    default (typically world-readable).
+  - Attachment upload path handling (`sanitizeBase` -> `filepath.Base`
+    plus separator stripping) and the SQL/FTS query construction in
+    `internal/history` were checked and are already sound -- no change
+    needed, named here so "checked, found fine" isn't silently
+    indistinguishable from "not checked."
+  - All of the above has new, passing tests proving the specific
+    exploit each one closes (not just that the happy path still
+    works) -- see `internal/daemon/auth_test.go`,
+    `internal/agent/policy_test.go` and the new cases in
+    `internal/agent/agent_test.go`, `internal/backend/fetch_test.go`,
+    and `internal/convert/convert_test.go`.

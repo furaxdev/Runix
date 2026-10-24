@@ -171,3 +171,67 @@ func TestNoApprovalFuncFailsClosed(t *testing.T) {
 		t.Error("expected failure when no approval function is configured (fail closed)")
 	}
 }
+
+// fakeSecret is a known-fake, test-only credential shaped like a real
+// one (generic "KEY=value" form secretscan's "credential" pattern
+// matches) -- never a real token. Allowlisted in .gitleaks.toml.
+const fakeSecret = "API_KEY=sk-fake1234567890abcdefghij"
+
+func TestExecuteRedactsSecretsInCommandOutput(t *testing.T) {
+	requireGit(t)
+	dir := t.TempDir()
+	a := New(Policy{WorkDir: dir}, func(context.Context, Request) (bool, ApprovalScope) { return true, ApprovalOnce })
+
+	result, err := a.Execute(context.Background(), "echo", []string{fakeSecret}, "echo a secret")
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if strings.Contains(result.Stdout, "sk-fake1234567890abcdefghij") {
+		t.Errorf("Stdout still contains the raw secret: %q", result.Stdout)
+	}
+	if !strings.Contains(result.Stdout, "[redacted:") {
+		t.Errorf("Stdout = %q, expected a [redacted:...] marker", result.Stdout)
+	}
+}
+
+func TestAuditLogRedactsSecretsInReasonAndArgs(t *testing.T) {
+	requireGit(t)
+	dir := t.TempDir()
+	a := New(Policy{WorkDir: dir}, func(context.Context, Request) (bool, ApprovalScope) { return true, ApprovalOnce })
+	a.AuditLogDir = filepath.Join(dir, ".runyx-audit")
+
+	_, err := a.Execute(context.Background(), "echo", []string{fakeSecret}, "reason mentions "+fakeSecret)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	auditData, err := os.ReadFile(filepath.Join(a.AuditLogDir, "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("read audit log: %v", err)
+	}
+	if strings.Contains(string(auditData), "sk-fake1234567890abcdefghij") {
+		t.Errorf("audit log still contains the raw secret: %s", auditData)
+	}
+	if !strings.Contains(string(auditData), "[redacted:") {
+		t.Errorf("audit log = %s, expected a [redacted:...] marker", auditData)
+	}
+}
+
+func TestAuditLogFileIsNotWorldReadable(t *testing.T) {
+	requireGit(t)
+	dir := t.TempDir()
+	a := New(Policy{WorkDir: dir}, func(context.Context, Request) (bool, ApprovalScope) { return true, ApprovalOnce })
+	a.AuditLogDir = filepath.Join(dir, ".runyx-audit")
+
+	if _, err := a.Execute(context.Background(), "echo", []string{"hi"}, "test"); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	info, err := os.Stat(filepath.Join(a.AuditLogDir, "audit.jsonl"))
+	if err != nil {
+		t.Fatalf("stat audit log: %v", err)
+	}
+	if info.Mode().Perm()&0o077 != 0 {
+		t.Errorf("audit.jsonl mode = %v, expected no group/other permission bits", info.Mode().Perm())
+	}
+}

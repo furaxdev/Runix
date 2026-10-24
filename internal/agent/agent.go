@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/furaxdev/runyx/internal/secretscan"
 )
 
 // Result is the outcome of one executed command.
@@ -117,8 +119,17 @@ func (a *Agent) Execute(ctx context.Context, command string, args []string, reas
 		diff, _ = Diff(ctx, absWorkDir, snapshotID)
 	}
 
+	// A command's own output can contain a secret it merely echoed
+	// (e.g. "cat .env", a tool printing an API key it was configured
+	// with) that was never part of the command line itself and so
+	// nothing upstream of this point had any reason to refuse or flag.
+	// Redact before this Result goes anywhere -- the API response, the
+	// audit log, chat history the model's reply might quote it into.
+	redactedStdout, _ := secretscan.Redact(stdout.String())
+	redactedStderr, _ := secretscan.Redact(stderr.String())
+
 	result := Result{
-		Command: command, Args: args, Stdout: stdout.String(), Stderr: stderr.String(),
+		Command: command, Args: args, Stdout: redactedStdout, Stderr: redactedStderr,
 		ExitCode: exitCode, Diff: diff, SnapshotID: snapshotID, StartedAt: start, Duration: time.Since(start).String(),
 	}
 
@@ -173,12 +184,36 @@ func (a *Agent) audit(entry AuditEntry) {
 	if a.AuditLogDir == "" {
 		return
 	}
-	os.MkdirAll(a.AuditLogDir, 0o755)
-	f, err := os.OpenFile(filepath.Join(a.AuditLogDir, "audit.jsonl"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	// The audit log is permanent (append-only, never rotated out by
+	// this package) and the model chose every one of these fields, so
+	// Reason/Args in particular can contain a secret the model was
+	// handed or typed back (a token pasted into a prompt, a password
+	// in a "run this to fix it" suggestion) with nothing upstream ever
+	// having redacted it. Redact before it's written, not after.
+	entry.Command, _ = secretscan.Redact(entry.Command)
+	for i, arg := range entry.Args {
+		entry.Args[i], _ = secretscan.Redact(arg)
+	}
+	entry.Reason, _ = secretscan.Redact(entry.Reason)
+	entry.Error, _ = secretscan.Redact(entry.Error)
+
+	if err := os.MkdirAll(a.AuditLogDir, 0o755); err != nil {
+		return
+	}
+	// 0o600: this file accumulates every command the shell agent has
+	// ever run, redacted but not a risk worth leaving world-readable
+	// regardless (matches daemon.TokenStore's devices.json precedent).
+	path := filepath.Join(a.AuditLogDir, "audit.jsonl")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return
 	}
 	defer f.Close()
+	// OpenFile's mode only applies when creating a new file -- an
+	// audit.jsonl left over from before this permission tightening
+	// would otherwise stay world-readable forever. Best-effort: a
+	// failure here (e.g. not the file's owner) doesn't block logging.
+	_ = os.Chmod(path, 0o600)
 	data, err := json.Marshal(entry)
 	if err != nil {
 		return

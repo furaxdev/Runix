@@ -2,10 +2,12 @@ package daemon
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -114,11 +116,16 @@ func (ts *TokenStore) List() []Device {
 }
 
 // Valid reports whether token matches a known, non-revoked device.
+// Comparison is constant-time (subtle.ConstantTimeCompare) so a remote
+// attacker measuring response latency across many guesses can't use
+// timing to recover a valid token one byte at a time -- a real,
+// if slow, attack against a plain == comparison over the network.
 func (ts *TokenStore) Valid(token string) bool {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
+	tokenBytes := []byte(token)
 	for _, d := range ts.devices {
-		if d.Token == token {
+		if subtle.ConstantTimeCompare([]byte(d.Token), tokenBytes) == 1 {
 			return true
 		}
 	}
@@ -131,7 +138,7 @@ func (ts *TokenStore) Valid(token string) bool {
 // over the network).
 func (ts *TokenStore) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if ts.LocalBypass && isLoopback(r.RemoteAddr) {
+		if ts.LocalBypass && isLoopback(r.RemoteAddr) && isGenuineLocalRequest(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -145,11 +152,55 @@ func (ts *TokenStore) Middleware(next http.Handler) http.Handler {
 	})
 }
 
+// isGenuineLocalRequest reports whether a request whose TCP connection
+// came from loopback was actually addressed to a loopback hostname by
+// the client -- not just routed there at the transport layer. Without
+// this check, LocalBypass is a real vulnerability: any webpage open in
+// the user's browser (any origin, no user interaction beyond having
+// the tab open) can issue a cross-origin fetch() straight to
+// http://127.0.0.1:<port>/..., or a page served from an
+// attacker-registered domain that resolves to 127.0.0.1 (DNS
+// rebinding) can make the browser believe it's same-origin -- either
+// way the *connection* is loopback even though the *request* was never
+// meant for this daemon. The trust model behind LocalBypass only holds
+// if the client itself believed it was talking to localhost, which is
+// exactly what the Host header (what DNS rebinding forges) and, when
+// present, the Origin header (what a direct cross-origin fetch forges)
+// report. If either names something other than a loopback host, the
+// bypass is refused and a real bearer token is required instead --
+// this never affects a genuinely remote client (paired phone, LAN
+// access), since those were never loopback at the TCP layer and so
+// never reached LocalBypass in the first place.
+func isGenuineLocalRequest(r *http.Request) bool {
+	if !isLoopbackHostPort(r.Host) {
+		return false
+	}
+	if origin := r.Header.Get("Origin"); origin != "" {
+		u, err := url.Parse(origin)
+		if err != nil || !isLoopbackHostname(u.Hostname()) {
+			return false
+		}
+	}
+	return true
+}
+
 func isLoopback(remoteAddr string) bool {
 	host := remoteAddr
 	if idx := lastColon(remoteAddr); idx >= 0 {
 		host = remoteAddr[:idx]
 	}
+	return isLoopbackHostname(host)
+}
+
+func isLoopbackHostPort(hostport string) bool {
+	host := hostport
+	if idx := lastColon(hostport); idx >= 0 {
+		host = hostport[:idx]
+	}
+	return isLoopbackHostname(host)
+}
+
+func isLoopbackHostname(host string) bool {
 	host = trimBrackets(host)
 	return host == "127.0.0.1" || host == "::1" || host == "localhost"
 }

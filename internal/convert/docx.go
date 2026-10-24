@@ -142,7 +142,29 @@ func renderMarkdownTable(tbl wTable) string {
 	return b.String()
 }
 
+// maxZipMemberBytes bounds how much decompressed data readZipMember
+// will ever read from one archive member, regardless of what the zip
+// header claims that member's size is (attacker-controlled, so never
+// trusted on its own). A zip/decompression bomb -- a crafted .docx/
+// .xlsx/.pptx a few KB in size that decompresses to gigabytes -- would
+// otherwise exhaust memory or hang the daemon on nothing more than a
+// user uploading it as an attachment. 200MB is far beyond any real
+// Office XML part this package will ever legitimately need to parse
+// (even a very large document's XML is typically a few MB), so this
+// never truncates a genuine file.
+const maxZipMemberBytes = 200 << 20
+
 func readZipMember(r *zip.ReadCloser, name string) ([]byte, error) {
+	return readZipMemberLimited(r, name, maxZipMemberBytes)
+}
+
+// readZipMemberLimited is the actual implementation, parameterized on
+// the byte limit so tests can exercise the bomb-refusal path with a
+// small fixture instead of a real multi-hundred-MB one (slow to
+// generate/compress/decompress even though it compresses well).
+// readZipMember above is the only real caller and always passes
+// maxZipMemberBytes.
+func readZipMemberLimited(r *zip.ReadCloser, name string, limit int64) ([]byte, error) {
 	for _, f := range r.File {
 		if f.Name == name {
 			rc, err := f.Open()
@@ -150,7 +172,14 @@ func readZipMember(r *zip.ReadCloser, name string) ([]byte, error) {
 				return nil, err
 			}
 			defer rc.Close()
-			return io.ReadAll(rc)
+			data, err := io.ReadAll(io.LimitReader(rc, limit+1))
+			if err != nil {
+				return nil, err
+			}
+			if int64(len(data)) > limit {
+				return nil, fmt.Errorf("member %q exceeds %d bytes decompressed -- refusing (possible zip bomb)", name, limit)
+			}
+			return data, nil
 		}
 	}
 	return nil, fmt.Errorf("member %q not found in archive", name)

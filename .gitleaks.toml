@@ -13,4 +13,5 @@ paths = [
   '''internal/secretscan/secretscan_test.go''',
   '''internal/memory/memory_test.go''',
   '''internal/pairing/pairing_test.go''',
+  '''internal/agent/agent_test.go''',
 ]

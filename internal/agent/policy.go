@@ -77,10 +77,9 @@ func (p Policy) Validate(req Request) error {
 	}
 
 	exe := req.Command
-	for _, deny := range append(append([]string{}, nonNegotiableDenyPrefixes...), p.DenyPrefixes...) {
-		if exe == deny {
-			return fmt.Errorf("command %q is never allowed", exe)
-		}
+	allDeny := append(append([]string{}, nonNegotiableDenyPrefixes...), p.DenyPrefixes...)
+	if matchesDenied(exe, allDeny) {
+		return fmt.Errorf("command %q is never allowed", exe)
 	}
 	if len(p.AllowPrefixes) > 0 && !contains(p.AllowPrefixes, exe) {
 		return fmt.Errorf("command %q is not in the allowed list", exe)
@@ -111,6 +110,31 @@ func (p Policy) Validate(req Request) error {
 func contains(list []string, v string) bool {
 	for _, s := range list {
 		if s == v {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesDenied reports whether exe names one of deny, checked against
+// the *base name* of exe (case-insensitively), not its raw literal
+// string. A plain `exe == deny` check -- what this replaces -- is
+// trivially bypassed: "/bin/sudo", "./sudo", or on Windows "SUDO.EXE"
+// all name the exact same program as "sudo" but would never match it
+// literally, letting a categorically-refused command (no sudo, ever --
+// see nonNegotiableDenyPrefixes) through to the approval prompt instead
+// of being refused outright. filepath.Base handles both "/bin/sudo"
+// and "./sudo"; the .exe/.bat/.cmd/.com suffix strip only ever changes
+// behavior on an actual Windows PATHEXT-style executable name, so it
+// can't cause a false match on POSIX (no such suffix there) or hide a
+// real POSIX binary literally named e.g. "sudo.exe".
+func matchesDenied(exe string, deny []string) bool {
+	base := strings.ToLower(filepath.Base(exe))
+	for _, ext := range []string{".exe", ".bat", ".cmd", ".com"} {
+		base = strings.TrimSuffix(base, ext)
+	}
+	for _, d := range deny {
+		if base == strings.ToLower(d) {
 			return true
 		}
 	}
