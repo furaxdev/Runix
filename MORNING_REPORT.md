@@ -4,9 +4,10 @@ Written and updated through the night. Nothing here is merged into
 `main` -- every commit below is on a branch, waiting for you to open
 and review the PR yourself.
 
-**Last updated**: 2026-10-24, early in the night shift. This file is
-being updated incrementally as work lands; if a section looks sparse,
-that work hasn't happened yet, not that it failed silently.
+**Last updated**: 2026-10-24, later in the night shift (demo bug's
+actual root cause found and fixed -- see below). This file is being
+updated incrementally as work lands; if a section looks sparse, that
+work hasn't happened yet, not that it failed silently.
 
 ## Kaggle credentials -- the key does not authenticate
 
@@ -85,70 +86,109 @@ merged into `main`)
   a `.gitleaks.toml` allowlist for this repo's own fake test tokens --
   run before every commit from here on.
 
-All three `feat/runyx-code` commits' CI is green (`ci.yml`, full Go
+- `f653f19` -- `internal/codeagent`'s `Sandbox`: every file tool's
+  path-containment gate. Rejects absolute paths, `..` traversal, and
+  symlink escape (a symlink planted *inside* the project pointing
+  outside it, caught by resolving every existing ancestor directory,
+  not just the final path), plus a deny-list (`.env`, `.ssh`, `.aws`,
+  `.gnupg`, `.config`, `*.pem`, `*.key`, `id_rsa`/`id_ed25519`,
+  `credentials.json`, `kaggle.json`) enforced even inside the project
+  root. 9 tests, including a real `os.Symlink`-based escape attempt.
+- `26096cf` -- the C0 tool set and agent loop:
+  `read_file`/`list_dir`/`search` (read-only), `write_file`/
+  `edit_file`/`delete`/`run_command` (each gated by
+  `internal/approval.Queue`, fails closed with no queue configured),
+  a unified-diff applier for `edit_file` that refuses a hunk whose
+  context no longer matches the file's current content (stale-diff
+  protection -- a model can't blind-apply a diff against content it
+  hasn't actually re-read), and `run_command` as a thin adapter onto
+  the existing `internal/agent.Agent` rather than a second
+  command-execution path. `Loop` ties it all together: plan -> tool
+  call -> observation, a configurable step limit (default 20), and
+  Stop via context cancellation; mascot-state hooks
+  (thinking/working/done/error) with no rendering logic here. **Tested
+  entirely against a scripted fake model, no network** -- one tool
+  call then stop, a tool error surfaced without aborting the batch,
+  the step limit, cancellation before the first model call, and the
+  full state-transition sequence for one turn. 34 tests total in this
+  package.
+
+All five `feat/runyx-code` commits' CI is green (`ci.yml`, full Go
 suite + race detector; this branch doesn't touch `tui/` or `web/` yet
 so only the Go job runs).
 
-**Not started yet tonight, in the order the brief gives them**: the
-file/command tools (`read_file`/`write_file`/`edit_file`/`run_command`
-etc.), the agent loop, GitHub tools, the mascot renderers (web/TUI/
-Android), the "New session" screen, Remote Control device scopes,
-skills, session search, and the model fine-tuning (blocked on the
-credential above). This is a multi-week mission; tonight covers the
-foundational, most security-critical pieces of C0 (memory, secrets,
-anti-sleep) that everything else builds on, not all of C0.
+**Not started yet, in the order the brief gives them**: GitHub tools,
+the sessions database + `session_search`, screenshot/read_image,
+Remote Control device scopes, skills, the mascot renderers (web/TUI/
+Android), the "New session" screen, and the model fine-tuning (blocked
+on the credential above). This is a multi-week mission; what's landed
+so far is C0's foundational pieces (memory, secrets, anti-sleep,
+sandbox, file/command tools, the agent loop with a fake-model
+integration test) -- not yet enough to drive a real end-to-end turn
+from any client UI, since no client is wired to this package yet.
 
-## Demo / inference readability (item 2) -- checked, found still broken, isolation job running
+## Demo / inference readability (item 2) -- root cause found and fixed, provable this time
 
-**You were right to ask this be checked.** I looked at the actual text
-in the latest demo capture
+**You were right to ask this be checked.** I first looked at the actual
+text in the latest demo capture
 (`docs/screenshots/light/03-conversation-response.png` on the
-`demo-screenshots` branch, from commit `9a308d9`) and it's still
-garbled multilingual gibberish -- the same symptom as the original
-AMD-EPYC bug, not fixed by the CPU-kernel-pruning workaround I added
-earlier this session. I had previously (wrongly) treated the demo as
-fixed once the CI pipeline went green and the screenshot *timing*
-issue (cursor never detaching) was resolved -- I never actually read
-the reply text in that fix's own commit. That was a mistake; this
-report is the correction, not a second claim of "fixed" without proof.
+`demo-screenshots` branch, commit `9a308d9`) and it was still garbled
+multilingual gibberish -- the same symptom as the original AMD-EPYC
+bug, not fixed by the CPU-kernel-pruning workaround added earlier. I
+had previously (wrongly) treated the demo as fixed once the CI
+pipeline went green and the screenshot *timing* issue (cursor never
+detaching) was resolved -- I never actually read the reply text in
+that fix's own commit. That was a mistake, and the rest of this
+section is the actual correction, not a second unproven claim.
 
-While investigating I found a real bug in the pruning workaround
-itself: `Fetcher.Ensure` (`internal/backend/fetch.go`) returns early
-("already cached") the moment `llama-server`'s binary path exists on
-disk, *before* ever reaching the `pruneToBaselineCPUKernel` call --
-so pruning only ever runs on a genuinely fresh extraction. This isn't
-necessarily the whole story (a correctly-pruned, cached extraction
-should still prune on its *first* population and stay pruned on later
-cache hits), but it's one concrete thing that could silently defeat
-the workaround under the wrong cache-key conditions, and it's exactly
-the kind of flags-and-caching interaction item 2 asked me to isolate
-rather than guess at.
+**What I did**: wrote `.github/workflows/demo-diagnose.yml`, a
+dedicated isolation matrix on GitHub's real runners (this sandbox has
+no outbound access to `github.com/ggml-org`, so the AMD-EPYC-specific
+behavior can't be reproduced here) testing CPU-kernel pruning on/off,
+the chat template (`--jinja` on/off), and a control model
+(Llama-3.2-1B-Instruct) against the Qwen demo model, each hitting its
+own `llama-server` instance directly (bypassing Runyx's daemon) with
+`"What is 2+2? Answer with one word."` at temperature 0.
 
-**Cannot reproduce locally**: this sandbox is an Intel Xeon host with
-no outbound access to `github.com/ggml-org` (same restriction as
-`docs/BLOCKED.md` already documents for other fetchers), so the
-AMD-EPYC-specific behavior can only be tested on GitHub's own runners.
+**Result** ([run 40080651797](https://github.com/furaxdev/Runyx/actions/runs/40080651797)):
+the CPU-kernel theory was wrong. Every Qwen2.5-0.5B-Instruct-GGUF
+Q4_K_M variant -- pruned, unpruned, and with `--jinja` -- produced the
+exact same garbled multilingual text. Both Llama-3.2-1B-Instruct-GGUF
+variants answered "4" correctly, instantly, on the *same* runner in
+the *same* job. Same CPU, same llama-server build, same kernel-pruning
+state: one model correct, the other garbage. The demo's model choice
+was the actual cause, not CPU-kernel selection. (The honest correction
+is also recorded in `docs/DECISIONS.md`, appended to the original
+wrong theory rather than replacing it silently.)
 
-**What I did**: wrote `.github/workflows/demo-diagnose.yml`
-(`workflow_dispatch`-only, doesn't run on every push) -- a dedicated
-isolation matrix, per your instructions, testing the axes you named:
-CPU-kernel pruning on/off (two *separate* backend extractions, so the
-caching bug above can't mask the comparison), the chat template
-(`--jinja` on/off), and a second, unrelated model family
-(Llama-3.2-1B-Instruct) as a control against the Qwen demo model.
-Each of the 5 variants gets a direct `curl` to its own `llama-server`
-instance (bypassing Runyx's daemon entirely, to isolate llama.cpp/
-model behavior from any Runyx-side bug) with a real completion
-request, and the raw response text is written to the job summary for
-direct reading.
+**What I fixed, on `ccr-8047f90c-ur2jz8` (commit `8409f5f`)**:
+- `demo.yml`'s `MODEL_SPEC` switched to
+  `bartowski/Llama-3.2-1B-Instruct-GGUF` -- the model actually proven
+  to produce readable output on this CI's runners.
+- Added `runyx run <model> --selftest`: asks the same answer-checkable
+  question once (temperature 0, 16 max tokens) and exits non-zero if
+  the reply doesn't contain "4"/"four", instead of dropping into the
+  interactive chat loop. Unit-tested (`cmd/runyx/cmd_run_test.go`)
+  against both real expected answers and the literal gibberish strings
+  this bug produced, so the check itself is proven to catch the
+  failure it's meant to catch.
+- `demo.yml` now runs `--selftest` right after pulling the model, so a
+  future broken model/build pairing fails the pipeline loudly instead
+  of only showing up as unreadable prose in a screenshot a human has
+  to notice.
+- Flagged (not removed) `Qwen/Qwen2.5-0.5B-Instruct-GGUF` in
+  `internal/hwdetect/recommend.go`'s catalog, since only the default
+  `Q4_K_M` pull was tested, not every quantization of that repo.
+  README and `docs/MANUAL_TESTS.md` examples updated to the
+  proven-working model.
 
-I triggered this job and am waiting on its result -- see the next
-update in this section once it completes. **I have not yet written a
-content assertion into `demo.yml` or a `runyx doctor`/`run --selftest`
-check** (the second half of item 2): doing that before knowing the
-actual root cause risks encoding the wrong fix (e.g. an assertion that
-only happens to pass because a flag change papered over the real bug).
-That follows once the isolation job's results are in.
+**Still not re-captured**: the demo screenshots on the
+`demo-screenshots` branch are still the old, broken-model ones as of
+this writing -- `demo.yml` needs to actually run again (push-triggered,
+or `workflow_dispatch`) against the new model before they refresh. The
+next push to `ccr-8047f90c-ur2jz8` that reaches `demo.yml`'s paths will
+do that automatically; I'm not forcing an extra run just to regenerate
+screenshots sooner.
 
 ## TUI T5/T6 (item 1)
 
@@ -167,6 +207,15 @@ happens as part of Runyx Code's own C0-C3 staging instead.
 
 - A real Kaggle token that actually authenticates (see above) before
   any fine-tuning work can start at all.
+- The demo screenshots on `demo-screenshots` haven't refreshed since
+  the model switch -- push something that touches `demo.yml`'s paths
+  (or trigger it manually) and check the new screenshots show a real,
+  readable "4" or similar, not just that the pipeline went green.
+- `internal/codeagent`'s loop has only ever talked to a scripted fake
+  model -- nothing yet confirms a real local model (Qwen2.5-Coder or
+  otherwise) actually emits well-formed `tool_calls` through
+  llama-server's OpenAI-compat endpoint for these exact tool schemas.
+  That's `docs/CODE_BENCH.md`'s job once there's a client to drive it.
 - Everything already listed in `TUI_REPORT.md` and `docs/BLOCKED.md`
   from earlier in this session (real model inference, real GitHub
   token, pairing from a real phone, real OS sleep/wake, Windows/macOS
