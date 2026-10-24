@@ -1,4 +1,12 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
+  .dl{margin:0 0 34px;padding:22px 24px;border:1px solid var(--line);border-radius:14px;background:var(--soft)}
+  .dl h3{margin:0 0 6px;font-family:var(--serif);font-size:1.32rem;font-weight:600;color:var(--ink)}
+  .dl p{margin:0 0 16px;color:var(--muted);font-size:.95rem;line-height:1.5}
+  .dl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+  .dl-grid .btn{justify-content:center;font-size:.93rem;padding:11px 14px}
+  .dl small{display:block;margin-top:14px;color:var(--muted);font-size:.82rem}
+  .dl small a{color:var(--blue)}
+</style></head><body>
 <title>Runyx</title>
 <meta name="description" content="Runyx runs open language models on your own computer: one program, a calm chat app, Ollama and OpenAI compatible APIs, an Android companion. Open source, MIT.">
 <meta name="theme-color" content="#2F4B7C">
@@ -332,7 +340,22 @@ footer a{margin-right:20px}
   </div>
 </div></div></div></section>
 
-<section id="install"><div class="wrap"><div id="itrack"><div class="ipin" id="ipin"><div class="split">
+<section id="install"><div class="wrap"><div class="dl">
+  <h3>Download Runyx 0.1.0</h3>
+  <p>No Go, no build. Unpack the archive, run <code>./runyx serve</code>, and open
+     <code>127.0.0.1:11535</code>. The first launch downloads its own inference backend.</p>
+  <div class="dl-grid">
+    <a class="btn primary" href="https://github.com/furaxdev/Runyx/releases/download/v0.1.0/runyx-windows-amd64.zip">Windows &middot; x64</a>
+    <a class="btn ghost" href="https://github.com/furaxdev/Runyx/releases/download/v0.1.0/runyx-darwin-arm64.tar.gz">macOS &middot; Apple silicon</a>
+    <a class="btn ghost" href="https://github.com/furaxdev/Runyx/releases/download/v0.1.0/runyx-linux-amd64.tar.gz">Linux &middot; x64</a>
+    <a class="btn ghost" href="https://github.com/furaxdev/Runyx/releases/download/v0.1.0/runyx-darwin-amd64.tar.gz">macOS &middot; Intel</a>
+    <a class="btn ghost" href="https://github.com/furaxdev/Runyx/releases/download/v0.1.0/runyx-linux-arm64.tar.gz">Linux &middot; ARM64</a>
+    <a class="btn ghost" href="https://github.com/furaxdev/Runyx/releases/download/v0.1.0/runyx-windows-arm64.zip">Windows &middot; ARM64</a>
+  </div>
+  <small>Each archive has a SHA-256 in <a href="https://github.com/furaxdev/Runyx/releases/download/v0.1.0/SHA256SUMS.txt">SHA256SUMS.txt</a>.
+     Prefer to build it yourself? The commands are just below.</small>
+</div>
+<div id="itrack"><div class="ipin" id="ipin"><div class="split">
   <div>
     <h2>Build it, pull a model, start talking.</h2>
     <p class="muted" id="icap" style="margin-top:18px">Build the program. You need Go; Runyx is a single program.</p>
