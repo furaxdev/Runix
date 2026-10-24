@@ -22,6 +22,18 @@ name: Demo diagnose (AMD EPYC gibberish isolation)
 
 on:
   workflow_dispatch:
+  # workflow_dispatch alone only appears in the Actions API/UI once a
+  # workflow file exists on the default branch, which this project's
+  # rules don't allow (nothing merges into main from here) -- so this
+  # also triggers on push to this branch, same as demo.yml, instead.
+  # Harmless to leave this way: this workflow is a one-shot diagnostic,
+  # not something that needs re-running on every subsequent push --
+  # delete this trigger (or the whole file) once the isolation is done.
+  push:
+    branches:
+      - ccr-8047f90c-ur2jz8
+    paths:
+      - ".github/workflows/demo-diagnose.yml"
 
 permissions:
   contents: read
