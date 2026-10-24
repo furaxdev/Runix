@@ -116,6 +116,15 @@
         paletteOpen = true;
       }
     });
+
+    // Without this, dropping a file anywhere outside the Composer's own
+    // drop zone falls through to the browser's default behavior --
+    // navigating the whole tab to the dropped file -- which would wipe
+    // out the app. The Composer's own dragover/drop handlers still run
+    // first (they stop propagation isn't needed since both just call
+    // preventDefault), so a drop *on* the composer still attaches it.
+    window.addEventListener("dragover", (e) => e.preventDefault());
+    window.addEventListener("drop", (e) => e.preventDefault());
   });
 
   $: commands = [
