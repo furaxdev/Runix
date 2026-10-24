@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, tick } from "svelte";
+  import { fade, scale } from "svelte/transition";
   import { api, type RegistryModel } from "./api";
   import { Plus, Mic, Square, SendHorizontal } from "./icons";
   import ModelSelect from "./ModelSelect.svelte";
@@ -10,6 +11,9 @@
   export let disabled = false;
   export let placeholder = "Type a message...";
   export let autofocus = false;
+  export let reduceMotion = false;
+
+  $: dropFadeDuration = reduceMotion ? 0 : 140;
 
   const dispatch = createEventDispatcher<{
     send: { text: string; attachments: { file_name: string; kind: string; text: string }[] };
@@ -148,12 +152,16 @@
   on:drop={onDrop}
 >
   {#if dragging}
-    <div class="drop-overlay">Drop to attach</div>
+    <div class="drop-overlay" transition:fade={{ duration: dropFadeDuration }}>
+      <span transition:scale={{ duration: dropFadeDuration, start: 0.9 }}>Drop to attach</span>
+    </div>
   {/if}
   {#if pendingAttachments.length > 0}
     <div class="chips">
-      {#each pendingAttachments as a}
-        <span class="chip" title={a.text.slice(0, 300)}>{a.file_name} ({a.kind})</span>
+      {#each pendingAttachments as a (a.file_name)}
+        <span class="chip" title={a.text.slice(0, 300)} transition:scale={{ duration: dropFadeDuration, start: 0.85 }}
+          >{a.file_name} ({a.kind})</span
+        >
       {/each}
     </div>
   {/if}

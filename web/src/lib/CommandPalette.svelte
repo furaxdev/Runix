@@ -1,9 +1,15 @@
 <script lang="ts">
+  import { fade, fly } from "svelte/transition";
+  import { flip } from "svelte/animate";
   import { t, type Lang } from "./i18n";
 
   export let lang: Lang;
   export let open = false;
   export let commands: { label: string; run: () => void }[] = [];
+  export let reduceMotion = false;
+
+  $: fadeDuration = reduceMotion ? 0 : 140;
+  $: flyDuration = reduceMotion ? 0 : 200;
 
   let query = "";
   let filtered: typeof commands = [];
@@ -23,8 +29,14 @@
 </script>
 
 {#if open}
-  <div class="overlay" on:click={() => (open = false)} role="presentation">
-    <div class="palette" on:click|stopPropagation role="dialog" aria-label={t(lang, "commandPalette")}>
+  <div class="overlay" on:click={() => (open = false)} role="presentation" transition:fade={{ duration: fadeDuration }}>
+    <div
+      class="palette"
+      on:click|stopPropagation
+      role="dialog"
+      aria-label={t(lang, "commandPalette")}
+      transition:fly={{ y: -10, duration: flyDuration, easing: (t) => 1 - Math.pow(1 - t, 3) }}
+    >
       <input
         autofocus
         placeholder={t(lang, "search")}
@@ -32,8 +44,8 @@
         on:keydown={onKeydown}
       />
       <ul>
-        {#each filtered as cmd}
-          <li>
+        {#each filtered as cmd (cmd.label)}
+          <li animate:flip={{ duration: reduceMotion ? 0 : 180 }}>
             <button on:click={() => runAndClose(cmd.run)}>{cmd.label}</button>
           </li>
         {/each}
